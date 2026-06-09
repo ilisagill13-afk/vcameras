@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>US Visa Slot Checker</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <span class="flag">🇺🇸</span>
+        <span>US Visa Slot Checker</span>
+      </div>
+      <div id="notification-bell" class="notification-bell" title="Notifications">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span id="notif-badge" class="notif-badge hidden">0</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="card" id="quick-check-section">
+      <h2>Quick Slot Check</h2>
+      <form id="quick-check-form" class="form-grid">
+        <div class="form-group">
+          <label for="qc-location">Consulate / Embassy</label>
+          <select id="qc-location" required></select>
+        </div>
+        <div class="form-group">
+          <label for="qc-visa">Visa Type</label>
+          <select id="qc-visa" required></select>
+        </div>
+        <button type="submit" class="btn btn-primary">Check Now</button>
+      </form>
+      <div id="quick-results" class="results-area hidden"></div>
+    </section>
+
+    <section class="card" id="monitor-section">
+      <h2>Active Monitors</h2>
+      <p class="subtitle">Monitors run every 5 minutes and alert you when slots open up.</p>
+      <form id="add-monitor-form" class="form-grid">
+        <div class="form-group">
+          <label for="m-location">Consulate / Embassy</label>
+          <select id="m-location" required></select>
+        </div>
+        <div class="form-group">
+          <label for="m-visa">Visa Type</label>
+          <select id="m-visa" required></select>
+        </div>
+        <div class="form-group">
+          <label for="m-date">Preferred Date (optional)</label>
+          <input type="date" id="m-date" />
+        </div>
+        <div class="form-group">
+          <label for="m-email">Alert Email (optional)</label>
+          <input type="email" id="m-email" placeholder="you@example.com" />
+        </div>
+        <button type="submit" class="btn btn-primary full-width">Add Monitor</button>
+      </form>
+      <div id="monitors-list" class="monitors-list"></div>
+    </section>
+
+    <section class="card" id="history-section">
+      <h2>Slot History</h2>
+      <div id="history-list" class="history-list">
+        <p class="empty-state">No slots recorded yet. Start a monitor to track availability.</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="notif-panel" class="notif-panel hidden">
+    <div class="notif-header">
+      <span>Notifications</span>
+      <button id="close-notif" class="close-btn">&times;</button>
+    </div>
+    <div id="notif-list" class="notif-list"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
