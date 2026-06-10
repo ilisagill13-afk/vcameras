@@ -352,6 +352,136 @@ select:focus, input:focus {
 .notif-item .n-msg { font-weight: 600; color: var(--gray-900); }
 .notif-item .n-time { color: var(--gray-500); font-size: .78rem; margin-top: 2px; }
 
+/* ── AIS status pill ─────────────────────────────── */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ca-flag { font-size: 1.2rem; }
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: .78rem;
+  font-weight: 600;
+  background: rgba(255,255,255,.15);
+  color: #fff;
+}
+
+.status-dot-sm {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9ca3af;
+  flex-shrink: 0;
+}
+
+.status-pill.connected    .status-dot-sm { background: #34d399; }
+.status-pill.connecting   .status-dot-sm { background: #fbbf24; animation: pulse 1s infinite; }
+.status-pill.error        .status-dot-sm { background: #f87171; }
+.status-pill.disconnected .status-dot-sm { background: #9ca3af; }
+
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+
+/* ── Credentials card ────────────────────────────── */
+.cred-connected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #ecfdf5;
+  border: 1.5px solid #6ee7b7;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.cred-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cred-email { font-size: .875rem; font-weight: 600; color: var(--gray-900); }
+.cred-appt  { font-size: .8rem; color: var(--gray-500); }
+
+.cred-error {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: #fef2f2;
+  border: 1.5px solid #fca5a5;
+  border-radius: 8px;
+  color: var(--red);
+  font-size: .875rem;
+}
+
+/* ── Badges ──────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+.badge-green { background: #d1fae5; color: #065f46; }
+.badge-blue  { background: #dbeafe; color: #1e40af; }
+.badge-gray  { background: var(--gray-100); color: var(--gray-700); }
+.badge-red   { background: #fee2e2; color: #991b1b; }
+
+/* ── Auto-book toggle row ────────────────────────── */
+.autobook-row { align-self: center; }
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: .875rem;
+  font-weight: 500;
+  color: var(--gray-700);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+
+/* ── Book button on slot card ────────────────────── */
+.btn-book {
+  display: inline-block;
+  margin-top: 8px;
+  height: 28px;
+  font-size: .78rem;
+  padding: 0 12px;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn-book:hover    { opacity: .85; }
+.btn-book:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Booking notification style ──────────────────── */
+.notif-booking { border-left: 3px solid var(--green); }
+
 .hidden { display: none !important; }
 
 .spinner {
