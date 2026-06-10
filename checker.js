@@ -98,6 +98,42 @@ async function checkMockSlots(locationId, visaType) {
   return slots;
 }
 
+// Earliest available slot for one location (lightweight: only the first
+// available date is expanded into times on the AIS path)
+async function findEarliestSlot(locationId, visaType, aisClient = null) {
+  const location = LOCATIONS.find(l => l.id === locationId);
+  if (!location) throw new Error(`Unknown location: ${locationId}`);
+
+  if (location.provider === 'ais' && aisClient) {
+    const facility = CANADA_FACILITIES[locationId];
+    const dates = await aisClient.getAvailableDates(facility.id);
+    const first = dates.find(d => d.date);
+    if (!first) return { location, slot: null, openDates: 0, live: true };
+
+    const times = await aisClient.getAvailableTimes(facility.id, first.date);
+    if (times.length === 0) return { location, slot: null, openDates: dates.length, live: true };
+
+    return {
+      location,
+      openDates: dates.length,
+      live: true,
+      slot: {
+        date: first.date,
+        time: times[0],
+        available: true,
+        location: facility.name,
+        visaType,
+        facilityId: facility.id,
+        bookingUrl: `https://ais.usvisa-info.com/en-ca/niv/schedule/${aisClient.appointmentId}/appointment`,
+      },
+    };
+  }
+
+  const slots = await checkMockSlots(locationId, visaType);
+  const available = slots.filter(s => s.available);
+  return { location, slot: available[0] || null, openDates: available.length, live: false };
+}
+
 async function checkSlots(locationId, visaType, aisClient = null) {
   const location = LOCATIONS.find(l => l.id === locationId);
   if (!location) throw new Error(`Unknown location: ${locationId}`);
@@ -108,4 +144,4 @@ async function checkSlots(locationId, visaType, aisClient = null) {
   return checkMockSlots(locationId, visaType);
 }
 
-module.exports = { checkSlots, getLocations, LOCATIONS };
+module.exports = { checkSlots, findEarliestSlot, getLocations, LOCATIONS };

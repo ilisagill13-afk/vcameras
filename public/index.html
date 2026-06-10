@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>US Visa Appointment Bot — Canada</title>
+  <title>FindVisaSlots — Visa Appointment Finder</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -11,7 +11,7 @@
     <div class="header-inner">
       <div class="logo">
         <span class="flag">🇺🇸</span>
-        <span>US Visa Bot — Canada</span>
+        <span>FindVisaSlots</span>
         <span class="ca-flag">🇨🇦</span>
       </div>
       <div class="header-right">
@@ -58,6 +58,26 @@
         <button type="submit" class="btn btn-primary full-width" id="connect-btn">Connect to AIS Portal</button>
       </form>
       <div id="cred-error" class="cred-error hidden"></div>
+    </section>
+
+    <!-- Find Visa Slots -->
+    <section class="card" id="find-slots-section">
+      <h2>Find Visa Slots</h2>
+      <p class="subtitle">Scan every consulate at once and rank them by earliest available appointment.</p>
+      <form id="find-slots-form" class="form-grid">
+        <div class="form-group">
+          <label for="fs-visa">Visa Type</label>
+          <select id="fs-visa" required></select>
+        </div>
+        <div class="form-group">
+          <label for="fs-country">Country</label>
+          <select id="fs-country">
+            <option value="">All countries</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary full-width" id="find-btn">Find Earliest Slots</button>
+      </form>
+      <div id="find-results" class="results-area hidden"></div>
     </section>
 
     <!-- Quick Check -->

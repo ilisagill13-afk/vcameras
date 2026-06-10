@@ -48,9 +48,14 @@
     ['qc-location', 'm-location'].forEach(id => {
       document.getElementById(id).innerHTML = buildOpts(locations);
     });
-    ['qc-visa', 'm-visa'].forEach(id => {
+    ['qc-visa', 'm-visa', 'fs-visa'].forEach(id => {
       document.getElementById(id).innerHTML = visaOpts;
     });
+
+    const countries = [...new Set(locations.map(l => l.country))];
+    document.getElementById('fs-country').innerHTML =
+      '<option value="">All countries</option>' +
+      countries.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
   }
 
   // ── AIS Credentials ─────────────────────────────────────────────────────────
@@ -130,6 +135,73 @@
   async function onDisconnect() {
     await fetch('/api/credentials', { method: 'DELETE' });
     updateAISStatusUI({ status: 'disconnected' });
+  }
+
+  // ── Find slots across consulates ────────────────────────────────────────────
+
+  async function onFindSlots(e) {
+    e.preventDefault();
+    const visaType = document.getElementById('fs-visa').value;
+    const country  = document.getElementById('fs-country').value;
+    if (!visaType) return;
+
+    const btn = document.getElementById('find-btn');
+    const resultsEl = document.getElementById('find-results');
+    btn.disabled = true;
+    resultsEl.classList.remove('hidden');
+    resultsEl.innerHTML = '<p class="loading-msg"><span class="spinner"></span>Scanning consulates for the earliest appointment...</p>';
+
+    try {
+      const params = new URLSearchParams({ visaType });
+      if (country) params.set('country', country);
+      const res  = await fetch(`/api/find-slots?${params}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Search failed');
+      renderFindResults(data.results, resultsEl);
+    } catch (err) {
+      resultsEl.innerHTML = `<p style="color:var(--red)">Error: ${escHtml(err.message)}</p>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function renderFindResults(results, container) {
+    const withSlots = results.filter(r => r.slot);
+
+    let html = `<div class="summary-bar">
+      <span>Scanned <strong>${results.length}</strong> consulates</span>
+      <span>With open slots: <strong>${withSlots.length}</strong></span>
+    </div>`;
+
+    html += results.map((r, i) => {
+      const loc = r.location;
+      const badge = r.error
+        ? '<span class="badge badge-red">Error</span>'
+        : `<span class="badge ${r.live ? 'badge-green' : 'badge-gray'}">${r.live ? 'Live AIS' : 'Mock'}</span>`;
+
+      let detail, action = '';
+      if (r.slot) {
+        detail = `Earliest: <strong>${formatDate(r.slot.date)} at ${r.slot.time}</strong> &middot; ${r.openDates} open date(s)`;
+        action = r.slot.facilityId && aisConnected
+          ? `<button class="btn btn-book" onclick="bookSlot(${r.slot.facilityId},'${r.slot.date}','${r.slot.time}','${escHtml(loc.name)}','${escHtml(r.slot.visaType || '')}',this)">Book Now</button>`
+          : `<a class="slot-link" href="${escHtml(r.slot.bookingUrl)}" target="_blank" rel="noopener">Book &rarr;</a>`;
+      } else if (r.error) {
+        detail = escHtml(r.error);
+      } else {
+        detail = 'No open slots';
+      }
+
+      return `<div class="find-row ${r.slot ? 'has-slot' : ''}">
+        <div class="find-rank">${r.slot ? `#${i + 1}` : '&mdash;'}</div>
+        <div class="monitor-info">
+          <div class="title">${escHtml(loc.name)}, ${escHtml(loc.country)} ${badge}</div>
+          <div class="meta">${detail}</div>
+        </div>
+        <div class="monitor-actions">${action}</div>
+      </div>`;
+    }).join('');
+
+    container.innerHTML = html;
   }
 
   // ── Quick check ─────────────────────────────────────────────────────────────
@@ -345,6 +417,7 @@
   // ── Bind all events ───────────────────────────────────────────────────────────
 
   function bindEvents() {
+    document.getElementById('find-slots-form').addEventListener('submit', onFindSlots);
     document.getElementById('quick-check-form').addEventListener('submit', onQuickCheck);
     document.getElementById('add-monitor-form').addEventListener('submit', onAddMonitor);
     document.getElementById('credentials-form').addEventListener('submit', onConnectAIS);

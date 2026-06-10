@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const cron = require('node-cron');
-const { checkSlots, getLocations } = require('./checker');
+const { checkSlots, findEarliestSlot, getLocations, LOCATIONS } = require('./checker');
 const { AISClient, CANADA_FACILITIES } = require('./ais-checker');
 
 const app = express();
@@ -87,6 +87,40 @@ app.get('/api/slots', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── Find slots across consulates ──────────────────────────────────────────────
+
+app.get('/api/find-slots', async (req, res) => {
+  const { visaType, country } = req.query;
+  if (!visaType) {
+    return res.status(400).json({ error: 'visaType is required' });
+  }
+
+  const targets = LOCATIONS.filter(l => !country || l.country === country);
+  if (targets.length === 0) {
+    return res.status(400).json({ error: `No locations found for country: ${country}` });
+  }
+
+  const settled = await Promise.allSettled(
+    targets.map(l => findEarliestSlot(l.id, visaType, state.aisClient))
+  );
+
+  const results = settled.map((r, i) =>
+    r.status === 'fulfilled'
+      ? r.value
+      : { location: targets[i], slot: null, openDates: 0, live: false, error: r.reason.message }
+  );
+
+  // Locations with an open slot first, sorted by earliest date
+  results.sort((a, b) => {
+    if (a.slot && b.slot) return a.slot.date.localeCompare(b.slot.date);
+    if (a.slot) return -1;
+    if (b.slot) return 1;
+    return a.location.name.localeCompare(b.location.name);
+  });
+
+  res.json({ results, visaType, checkedAt: new Date().toISOString() });
 });
 
 // ── Booking ───────────────────────────────────────────────────────────────────

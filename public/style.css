@@ -479,6 +479,35 @@ select:focus, input:focus {
 .btn-book:hover    { opacity: .85; }
 .btn-book:disabled { opacity: .5; cursor: not-allowed; }
 
+/* ── Find slots results ──────────────────────────── */
+.find-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--gray-50);
+  border: 1.5px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 10px;
+}
+
+.find-row.has-slot {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+}
+
+.find-row .monitor-info { flex: 1; }
+
+.find-rank {
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--green);
+  min-width: 32px;
+  text-align: center;
+}
+
+.find-row:not(.has-slot) .find-rank { color: var(--gray-500); }
+
 /* ── Booking notification style ──────────────────── */
 .notif-booking { border-left: 3px solid var(--green); }
 

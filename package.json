@@ -1,7 +1,7 @@
 {
-  "name": "us-visa-slot-checker",
+  "name": "findvisaslots",
   "version": "1.0.0",
-  "description": "US Visa Appointment Slot Monitoring & Booking Tool",
+  "description": "FindVisaSlots — US visa appointment slot finder, monitor, and booking tool",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
