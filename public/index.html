@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>US Visa Slot Checker</title>
+  <title>US Visa Appointment Bot — Canada</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -11,18 +11,56 @@
     <div class="header-inner">
       <div class="logo">
         <span class="flag">🇺🇸</span>
-        <span>US Visa Slot Checker</span>
+        <span>US Visa Bot — Canada</span>
+        <span class="ca-flag">🇨🇦</span>
       </div>
-      <div id="notification-bell" class="notification-bell" title="Notifications">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-        </svg>
-        <span id="notif-badge" class="notif-badge hidden">0</span>
+      <div class="header-right">
+        <div id="ais-status-pill" class="status-pill disconnected" title="AIS Connection Status">
+          <span class="status-dot-sm"></span>
+          <span id="ais-status-label">Not Connected</span>
+        </div>
+        <div id="notification-bell" class="notification-bell" title="Notifications">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span id="notif-badge" class="notif-badge hidden">0</span>
+        </div>
       </div>
     </div>
   </header>
 
   <main>
+
+    <!-- AIS Credentials -->
+    <section class="card" id="credentials-section">
+      <h2>AIS Account — Canada</h2>
+      <p class="subtitle">
+        Connect your <strong>ais.usvisa-info.com</strong> account to check real slots and auto-book appointments.
+        Credentials are stored only in memory and cleared on restart.
+      </p>
+      <div id="credentials-connected" class="cred-connected hidden">
+        <div class="cred-info">
+          <span class="badge badge-green">Connected</span>
+          <span id="cred-email-label" class="cred-email"></span>
+          <span id="cred-appt-label" class="cred-appt"></span>
+        </div>
+        <button class="btn btn-ghost" id="disconnect-btn">Disconnect</button>
+      </div>
+      <form id="credentials-form" class="form-grid">
+        <div class="form-group">
+          <label for="ais-email">AIS Email</label>
+          <input type="email" id="ais-email" placeholder="your@email.com" required />
+        </div>
+        <div class="form-group">
+          <label for="ais-password">AIS Password</label>
+          <input type="password" id="ais-password" placeholder="••••••••" required />
+        </div>
+        <button type="submit" class="btn btn-primary full-width" id="connect-btn">Connect to AIS Portal</button>
+      </form>
+      <div id="cred-error" class="cred-error hidden"></div>
+    </section>
+
+    <!-- Quick Check -->
     <section class="card" id="quick-check-section">
       <h2>Quick Slot Check</h2>
       <form id="quick-check-form" class="form-grid">
@@ -39,9 +77,10 @@
       <div id="quick-results" class="results-area hidden"></div>
     </section>
 
+    <!-- Monitors -->
     <section class="card" id="monitor-section">
       <h2>Active Monitors</h2>
-      <p class="subtitle">Monitors run every 5 minutes and alert you when slots open up.</p>
+      <p class="subtitle">Monitors run every 5 minutes. Enable Auto-Book to book the first available slot automatically.</p>
       <form id="add-monitor-form" class="form-grid">
         <div class="form-group">
           <label for="m-location">Consulate / Embassy</label>
@@ -59,11 +98,26 @@
           <label for="m-email">Alert Email (optional)</label>
           <input type="email" id="m-email" placeholder="you@example.com" />
         </div>
+        <div class="form-group full-width autobook-row">
+          <label class="toggle-label">
+            <input type="checkbox" id="m-autobook" />
+            <span class="toggle-text">Auto-Book first available slot (requires AIS connection)</span>
+          </label>
+        </div>
         <button type="submit" class="btn btn-primary full-width">Add Monitor</button>
       </form>
       <div id="monitors-list" class="monitors-list"></div>
     </section>
 
+    <!-- Bookings -->
+    <section class="card" id="bookings-section">
+      <h2>Booking History</h2>
+      <div id="bookings-list" class="history-list">
+        <p class="empty-state">No booking attempts yet.</p>
+      </div>
+    </section>
+
+    <!-- Slot History -->
     <section class="card" id="history-section">
       <h2>Slot History</h2>
       <div id="history-list" class="history-list">
