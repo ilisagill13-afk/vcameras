@@ -1,0 +1,5 @@
+-keep class com.usvisa.appointment.data.model.** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*
+-dontwarn okhttp3.**
+-dontwarn retrofit2.**
