@@ -49,10 +49,8 @@ fun WebViewLoginScreen(
                             "Chrome/124.0.6367.82 Mobile Safari/537.36"
                     }
 
-                    CookieManager.getInstance().apply {
-                        setAcceptCookie(true)
-                        setAcceptThirdPartyCookies(this@apply, true)
-                    }
+                    CookieManager.getInstance().setAcceptCookie(true)
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 
                     webViewClient = object : WebViewClient() {
 
