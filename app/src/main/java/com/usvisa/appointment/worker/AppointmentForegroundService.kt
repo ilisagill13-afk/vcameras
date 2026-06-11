@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.random.Random
 
 class AppointmentForegroundService : Service() {
 
@@ -119,9 +120,6 @@ class AppointmentForegroundService : Service() {
                             _checkCount.value++
                             val msg = result.message
                             log("✗ $msg")
-                            val timeStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-                                .format(Date())
-                            updateNotification("[$timeStr] No slots — next in ${intervalSec}s")
                         }
                     }
                 } catch (e: CancellationException) {
@@ -131,8 +129,14 @@ class AppointmentForegroundService : Service() {
                     log("Error: ${e.message}")
                 }
 
-                // Wait exactly intervalSec seconds before next check
-                delay(intervalSec * 1000L)
+                // Randomise wait: ±(intervalSec/3) jitter, but never below configured minimum
+                val jitterRange = (intervalSec / 3).coerceAtLeast(2)
+                val jitter = Random.nextInt(-jitterRange, jitterRange + 1)
+                val actualDelay = (intervalSec + jitter).coerceAtLeast(intervalSec).toLong()
+                val timeStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+                updateNotification("[$timeStr] Waiting ${actualDelay}s (next check)…")
+                log("Next check in ${actualDelay}s")
+                delay(actualDelay * 1000L)
             }
         }
     }
