@@ -1,0 +1,78 @@
+[
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/menu_bottom_nav.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/menu/bottom_nav.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/drawable_ic_list.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/drawable/ic_list.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/drawable_bg_card.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/drawable/bg_card.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/layout_fragment_slots.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/layout/fragment_slots.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/layout_fragment_monitors.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/layout/fragment_monitors.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/drawable_bg_info.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/drawable/bg_info.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/drawable_bg_green_card.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/drawable/bg_green_card.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/layout_item_slot.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/layout/item_slot.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/layout_fragment_login.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/layout/fragment_login.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/drawable_bg_error.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/drawable/bg_error.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/layout_item_booking.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/layout/item_booking.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/layout_item_monitor.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/layout/item_monitor.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/drawable_bg_slot_row.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/drawable/bg_slot_row.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/drawable_ic_home.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/drawable/ic_home.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/drawable_bg_input.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/drawable/bg_input.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/layout_activity_main.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/drawable_ic_calendar.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/drawable/ic_calendar.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/drawable_ic_bell.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/drawable/ic_bell.xml"
+    },
+    {
+        "merged": "com.visabot.canada.app-merged_res-4:/layout_fragment_bookings.xml.flat",
+        "source": "com.visabot.canada.app-main-6:/layout/fragment_bookings.xml"
+    }
+]

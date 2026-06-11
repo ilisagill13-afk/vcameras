@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="#F9FAFB">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="20dp">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:background="@drawable/bg_card" android:padding="18dp">
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Check Available Slots" android:textStyle="bold"
+                android:textSize="16sp" android:textColor="#111827"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Real-time slot availability from AIS portal"
+                android:textSize="13sp" android:textColor="#6B7280"
+                android:paddingTop="4dp" android:paddingBottom="16dp"/>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="CONSULATE" android:textSize="11sp" android:textStyle="bold"
+                android:textColor="#374151" android:paddingBottom="6dp"/>
+            <Spinner android:id="@+id/sp_city"
+                android:layout_width="match_parent" android:layout_height="44dp"/>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="VISA TYPE" android:textSize="11sp" android:textStyle="bold"
+                android:textColor="#374151" android:paddingTop="14dp" android:paddingBottom="6dp"/>
+            <Spinner android:id="@+id/sp_visa"
+                android:layout_width="match_parent" android:layout_height="44dp"/>
+
+            <Button android:id="@+id/btn_check"
+                android:layout_width="match_parent" android:layout_height="44dp"
+                android:text="Check Now" android:backgroundTint="#1A56DB"
+                android:textColor="@android:color/white" android:textStyle="bold"
+                android:layout_marginTop="16dp"/>
+        </LinearLayout>
+
+        <TextView android:id="@+id/tv_check_status"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textSize="14sp" android:textColor="#374151"
+            android:padding="12dp" android:visibility="gone"/>
+
+        <LinearLayout android:id="@+id/slots_container"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical"/>
+    </LinearLayout>
+</ScrollView>

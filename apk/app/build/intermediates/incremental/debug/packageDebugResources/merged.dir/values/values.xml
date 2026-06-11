@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Visa Bot</string>
+    <style name="AppTheme" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">#1A56DB</item>
+        <item name="colorPrimaryVariant">#1043A9</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorSecondary">#0EA472</item>
+        <item name="colorOnSecondary">@android:color/white</item>
+        <item name="android:windowBackground">#F9FAFB</item>
+    </style>
+</resources>

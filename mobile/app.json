@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "US Visa Bot",
+    "slug": "us-visa-bot-canada",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#1a56db"
+    },
+    "android": {
+      "package": "com.visabot.canada",
+      "versionCode": 1,
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "INTERNET"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#1a56db"
+        }
+      ]
+    ]
+  }
+}

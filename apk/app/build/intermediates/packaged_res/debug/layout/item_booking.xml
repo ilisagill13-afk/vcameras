@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:background="@drawable/bg_card"
+    android:padding="16dp" android:layout_marginBottom="12dp">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView android:id="@+id/tv_booking_title"
+            android:layout_width="0dp" android:layout_weight="1"
+            android:layout_height="wrap_content" android:textStyle="bold"
+            android:textSize="15sp" android:textColor="#111827"/>
+        <TextView android:id="@+id/tv_booking_status"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textStyle="bold" android:textSize="12sp" android:paddingStart="8dp"/>
+    </LinearLayout>
+    <TextView android:id="@+id/tv_booking_visa"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textSize="13sp" android:textColor="#6B7280" android:paddingTop="2dp"/>
+    <TextView android:id="@+id/tv_booking_date"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textSize="14sp" android:textStyle="bold" android:textColor="#111827"
+        android:paddingTop="6dp"/>
+    <TextView android:id="@+id/tv_booking_meta"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textSize="11sp" android:textColor="#9CA3AF" android:paddingTop="2dp"/>
+    <Button android:id="@+id/btn_view_ais"
+        android:layout_width="wrap_content" android:layout_height="32dp"
+        android:text="View on AIS →" android:backgroundTint="#E8F0FE"
+        android:textColor="#1A56DB" android:textSize="12sp"
+        android:layout_marginTop="8dp"/>
+</LinearLayout>
