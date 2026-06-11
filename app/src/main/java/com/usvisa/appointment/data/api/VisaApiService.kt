@@ -2,33 +2,40 @@ package com.usvisa.appointment.data.api
 
 import com.usvisa.appointment.data.model.AvailableDay
 import com.usvisa.appointment.data.model.AvailableTimes
+import com.usvisa.appointment.data.model.LoginJsonRequest
+import com.usvisa.appointment.data.model.LoginJsonResponse
 import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.*
 
 interface VisaApiService {
 
+    // Step 1: Load login page → extracts CSRF token + session cookie
     @GET("users/sign_in")
     suspend fun getLoginPage(): Response<ResponseBody>
 
-    @FormUrlEncoded
+    // Step 2: POST JSON credentials — website expects JSON, NOT form-encoded
+    @Headers(
+        "Content-Type: application/json",
+        "Accept: application/json"
+    )
     @POST("users/sign_in")
-    suspend fun login(
-        @Field("user[email]") email: String,
-        @Field("user[password]") password: String,
-        @Field("policy_confirmed") policyConfirmed: Int = 1,
-        @Field("utf8") utf8: String = "✓",
-        @Header("X-CSRF-Token") csrfToken: String
-    ): Response<ResponseBody>
+    suspend fun loginJson(
+        @Header("X-CSRF-Token") csrfToken: String,
+        @Body request: LoginJsonRequest
+    ): Response<LoginJsonResponse>
 
-    @GET("users/sign_out")
-    suspend fun logout(): Response<ResponseBody>
+    // Fetch any relative URL (used for groups page after login redirect)
+    @GET
+    suspend fun getPage(@Url url: String): Response<ResponseBody>
 
+    // Appointment page: contains facility IDs in select dropdown + fresh CSRF token
     @GET("schedule/{scheduleId}/appointment")
     suspend fun getAppointmentPage(
         @Path("scheduleId") scheduleId: String
     ): Response<ResponseBody>
 
+    // Available dates for a consulate within a schedule
     @GET("schedule/{scheduleId}/appointment/days/{facilityId}.json")
     suspend fun getAvailableDays(
         @Path("scheduleId") scheduleId: String,
@@ -36,6 +43,7 @@ interface VisaApiService {
         @Query("appointments[expedite]") expedite: Boolean = false
     ): Response<List<AvailableDay>>
 
+    // Available time slots for a specific date
     @GET("schedule/{scheduleId}/appointment/times/{facilityId}.json")
     suspend fun getAvailableTimes(
         @Path("scheduleId") scheduleId: String,
@@ -44,6 +52,7 @@ interface VisaApiService {
         @Query("appointments[expedite]") expedite: Boolean = false
     ): Response<AvailableTimes>
 
+    // Book the appointment (form-encoded PUT via _method override)
     @FormUrlEncoded
     @POST("schedule/{scheduleId}/appointment")
     suspend fun bookAppointment(
@@ -56,8 +65,6 @@ interface VisaApiService {
         @Field("_method") method: String = "put"
     ): Response<ResponseBody>
 
-    @GET("schedule/{scheduleId}/payment")
-    suspend fun getPaymentInfo(
-        @Path("scheduleId") scheduleId: String
-    ): Response<ResponseBody>
+    @GET("users/sign_out")
+    suspend fun logout(): Response<ResponseBody>
 }

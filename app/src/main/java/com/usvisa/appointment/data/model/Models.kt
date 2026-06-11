@@ -12,14 +12,23 @@ data class AvailableTimes(
     @SerializedName("business_times") val businessTimes: List<String>
 )
 
-data class LoginRequest(
+// JSON body for real login (website expects JSON, not form-encoded)
+data class LoginJsonRequest(
     @SerializedName("user") val user: UserCredentials,
-    @SerializedName("policy_confirmed") val policyConfirmed: Int = 1
+    @SerializedName("utf8") val utf8: String = "✓"
 )
 
 data class UserCredentials(
     @SerializedName("email") val email: String,
-    @SerializedName("password") val password: String
+    @SerializedName("password") val password: String,
+    @SerializedName("policy_confirmed") val policyConfirmed: Int = 1
+)
+
+// Server returns {"redirect_path":"/en-ca/niv/groups/12345"} on success
+// or {"error":"Invalid Email or password."} on failure
+data class LoginJsonResponse(
+    @SerializedName("redirect_path") val redirectPath: String?,
+    @SerializedName("error") val error: String?
 )
 
 data class AppointmentBookingData(
@@ -42,9 +51,9 @@ data class MonitoringStatus(
 data class AppSettings(
     val email: String = "",
     val password: String = "",
-    val scheduleId: String = "",
-    val facilityId: String = "89",
-    val facilityName: String = "Calgary",
+    val scheduleId: String = "",          // auto-detected after login
+    val facilityId: String = "",          // user must set this (from website)
+    val facilityName: String = "",
     val startDate: String = "",
     val endDate: String = "",
     val checkIntervalMinutes: Int = 5,
@@ -52,7 +61,9 @@ data class AppSettings(
     val sessionCookie: String = "",
     val csrfToken: String = "",
     val autoBook: Boolean = true,
-    val notifyOnFound: Boolean = true
+    val notifyOnFound: Boolean = true,
+    val manualScheduleId: String = "",    // user override for schedule ID
+    val manualFacilityId: String = ""     // user override for facility ID
 )
 
 data class FacilityOption(

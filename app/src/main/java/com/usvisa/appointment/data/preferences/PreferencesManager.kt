@@ -28,20 +28,19 @@ class PreferencesManager(private val context: Context) {
         val KEY_CSRF_TOKEN = stringPreferencesKey("csrf_token")
         val KEY_AUTO_BOOK = booleanPreferencesKey("auto_book")
         val KEY_NOTIFY_ON_FOUND = booleanPreferencesKey("notify_on_found")
+        val KEY_MANUAL_SCHEDULE_ID = stringPreferencesKey("manual_schedule_id")
+        val KEY_MANUAL_FACILITY_ID = stringPreferencesKey("manual_facility_id")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data
-        .catch { exception ->
-            if (exception is IOException) emit(emptyPreferences())
-            else throw exception
-        }
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
         .map { prefs ->
             AppSettings(
                 email = prefs[KEY_EMAIL] ?: "",
                 password = prefs[KEY_PASSWORD] ?: "",
                 scheduleId = prefs[KEY_SCHEDULE_ID] ?: "",
-                facilityId = prefs[KEY_FACILITY_ID] ?: "89",
-                facilityName = prefs[KEY_FACILITY_NAME] ?: "Calgary",
+                facilityId = prefs[KEY_FACILITY_ID] ?: "",
+                facilityName = prefs[KEY_FACILITY_NAME] ?: "",
                 startDate = prefs[KEY_START_DATE] ?: "",
                 endDate = prefs[KEY_END_DATE] ?: "",
                 checkIntervalMinutes = prefs[KEY_INTERVAL] ?: 5,
@@ -49,7 +48,9 @@ class PreferencesManager(private val context: Context) {
                 sessionCookie = prefs[KEY_SESSION_COOKIE] ?: "",
                 csrfToken = prefs[KEY_CSRF_TOKEN] ?: "",
                 autoBook = prefs[KEY_AUTO_BOOK] ?: true,
-                notifyOnFound = prefs[KEY_NOTIFY_ON_FOUND] ?: true
+                notifyOnFound = prefs[KEY_NOTIFY_ON_FOUND] ?: true,
+                manualScheduleId = prefs[KEY_MANUAL_SCHEDULE_ID] ?: "",
+                manualFacilityId = prefs[KEY_MANUAL_FACILITY_ID] ?: ""
             )
         }
 
@@ -60,11 +61,7 @@ class PreferencesManager(private val context: Context) {
         }
     }
 
-    suspend fun saveSessionData(
-        scheduleId: String,
-        sessionCookie: String,
-        csrfToken: String
-    ) {
+    suspend fun saveSessionData(scheduleId: String, sessionCookie: String, csrfToken: String) {
         context.dataStore.edit { prefs ->
             prefs[KEY_SCHEDULE_ID] = scheduleId
             prefs[KEY_SESSION_COOKIE] = sessionCookie
@@ -80,7 +77,9 @@ class PreferencesManager(private val context: Context) {
         endDate: String,
         intervalMinutes: Int,
         autoBook: Boolean,
-        notifyOnFound: Boolean
+        notifyOnFound: Boolean,
+        manualScheduleId: String,
+        manualFacilityId: String
     ) {
         context.dataStore.edit { prefs ->
             prefs[KEY_FACILITY_ID] = facilityId
@@ -90,6 +89,8 @@ class PreferencesManager(private val context: Context) {
             prefs[KEY_INTERVAL] = intervalMinutes
             prefs[KEY_AUTO_BOOK] = autoBook
             prefs[KEY_NOTIFY_ON_FOUND] = notifyOnFound
+            prefs[KEY_MANUAL_SCHEDULE_ID] = manualScheduleId
+            prefs[KEY_MANUAL_FACILITY_ID] = manualFacilityId
         }
     }
 

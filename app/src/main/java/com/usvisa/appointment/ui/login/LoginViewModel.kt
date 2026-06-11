@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.usvisa.appointment.data.preferences.PreferencesManager
 import com.usvisa.appointment.data.repository.AppointmentRepository
+import com.usvisa.appointment.data.repository.FacilityFromPage
 import com.usvisa.appointment.data.repository.RepoResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,7 +19,8 @@ data class LoginUiState(
     val isLoading: Boolean = false,
     val error: String = "",
     val isLoggedIn: Boolean = false,
-    val scheduleId: String = ""
+    val scheduleId: String = "",
+    val detectedFacilities: List<FacilityFromPage> = emptyList()
 )
 
 class LoginViewModel(application: Application) : AndroidViewModel(application) {
@@ -60,10 +62,27 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
 
             when (val result = repository.login(state.email, state.password)) {
                 is RepoResult.Success -> {
+                    val loginResult = result.data
+                    // Auto-set facility ID if only one consulate found on the page
+                    if (loginResult.facilities.size == 1) {
+                        val f = loginResult.facilities.first()
+                        prefsManager.saveAppointmentSettings(
+                            facilityId = f.id,
+                            facilityName = f.name,
+                            startDate = "",
+                            endDate = "",
+                            intervalMinutes = 5,
+                            autoBook = true,
+                            notifyOnFound = true,
+                            manualScheduleId = "",
+                            manualFacilityId = ""
+                        )
+                    }
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         isLoggedIn = true,
-                        scheduleId = result.data,
+                        scheduleId = loginResult.scheduleId,
+                        detectedFacilities = loginResult.facilities,
                         error = ""
                     )
                 }

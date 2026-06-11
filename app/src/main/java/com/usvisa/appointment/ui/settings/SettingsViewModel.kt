@@ -4,8 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.usvisa.appointment.data.model.AppSettings
-import com.usvisa.appointment.data.model.CANADA_FACILITIES
-import com.usvisa.appointment.data.model.FacilityOption
 import com.usvisa.appointment.data.preferences.PreferencesManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -13,12 +11,15 @@ import kotlinx.coroutines.launch
 data class SettingsUiState(
     val settings: AppSettings = AppSettings(),
     val isSaved: Boolean = false,
-    val selectedFacility: FacilityOption = CANADA_FACILITIES[0],
+    val facilityId: String = "",
+    val facilityName: String = "",
     val startDate: String = "",
     val endDate: String = "",
     val intervalMinutes: Int = 5,
     val autoBook: Boolean = true,
-    val notifyOnFound: Boolean = true
+    val notifyOnFound: Boolean = true,
+    val manualScheduleId: String = "",
+    val manualFacilityId: String = ""
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -31,23 +32,28 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     init {
         viewModelScope.launch {
             prefsManager.settingsFlow.first().let { settings ->
-                val facility = CANADA_FACILITIES.find { it.id == settings.facilityId }
-                    ?: CANADA_FACILITIES[0]
                 _uiState.value = SettingsUiState(
                     settings = settings,
-                    selectedFacility = facility,
+                    facilityId = settings.facilityId,
+                    facilityName = settings.facilityName,
                     startDate = settings.startDate,
                     endDate = settings.endDate,
                     intervalMinutes = settings.checkIntervalMinutes,
                     autoBook = settings.autoBook,
-                    notifyOnFound = settings.notifyOnFound
+                    notifyOnFound = settings.notifyOnFound,
+                    manualScheduleId = settings.manualScheduleId,
+                    manualFacilityId = settings.manualFacilityId
                 )
             }
         }
     }
 
-    fun onFacilitySelected(facility: FacilityOption) {
-        _uiState.update { it.copy(selectedFacility = facility, isSaved = false) }
+    fun onFacilityIdChange(id: String) {
+        _uiState.update { it.copy(facilityId = id, isSaved = false) }
+    }
+
+    fun onFacilityNameChange(name: String) {
+        _uiState.update { it.copy(facilityName = name, isSaved = false) }
     }
 
     fun onStartDateChange(date: String) {
@@ -70,17 +76,27 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _uiState.update { it.copy(notifyOnFound = enabled, isSaved = false) }
     }
 
+    fun onManualScheduleIdChange(id: String) {
+        _uiState.update { it.copy(manualScheduleId = id, isSaved = false) }
+    }
+
+    fun onManualFacilityIdChange(id: String) {
+        _uiState.update { it.copy(manualFacilityId = id, isSaved = false) }
+    }
+
     fun saveSettings() {
-        val state = _uiState.value
+        val s = _uiState.value
         viewModelScope.launch {
             prefsManager.saveAppointmentSettings(
-                facilityId = state.selectedFacility.id,
-                facilityName = state.selectedFacility.city,
-                startDate = state.startDate,
-                endDate = state.endDate,
-                intervalMinutes = state.intervalMinutes,
-                autoBook = state.autoBook,
-                notifyOnFound = state.notifyOnFound
+                facilityId = s.facilityId,
+                facilityName = s.facilityName,
+                startDate = s.startDate,
+                endDate = s.endDate,
+                intervalMinutes = s.intervalMinutes,
+                autoBook = s.autoBook,
+                notifyOnFound = s.notifyOnFound,
+                manualScheduleId = s.manualScheduleId,
+                manualFacilityId = s.manualFacilityId
             )
             _uiState.update { it.copy(isSaved = true) }
         }

@@ -169,6 +169,31 @@ fun LoginScreen(
                         )
                     )
 
+                    // Show detected facilities after successful login
+                    if (uiState.detectedFacilities.isNotEmpty()) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF0D2E0D)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.CheckCircle, null,
+                                        tint = Color(0xFF66BB6A), modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Available Consulates:", color = Color(0xFF66BB6A),
+                                        fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                uiState.detectedFacilities.forEach { f ->
+                                    Text("• ${f.name} — ID: ${f.id}", color = Color(0xFFA5D6A7), fontSize = 12.sp)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Copy your consulate's ID to Settings.",
+                                    color = Color(0xFF81C784), fontSize = 11.sp)
+                            }
+                        }
+                    }
+
                     if (uiState.error.isNotEmpty()) {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF3D0000)),
