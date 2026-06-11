@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.usvisa.appointment.data.model.AppSettings
 import com.usvisa.appointment.data.preferences.PreferencesManager
+import com.usvisa.appointment.data.repository.AppointmentRepository
+import com.usvisa.appointment.data.repository.FacilityFromPage
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -19,12 +21,15 @@ data class SettingsUiState(
     val autoBook: Boolean = true,
     val notifyOnFound: Boolean = true,
     val manualScheduleId: String = "",
-    val manualFacilityId: String = ""
+    val manualFacilityId: String = "",
+    val detectedFacilities: List<FacilityFromPage> = emptyList(),
+    val isLoadingFacilities: Boolean = false
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val prefsManager = PreferencesManager(application)
+    private val repository = AppointmentRepository.getInstance(application)
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -32,6 +37,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     init {
         viewModelScope.launch {
             prefsManager.settingsFlow.first().let { s ->
+                val scheduleId = s.manualScheduleId.ifEmpty { s.scheduleId }
                 _uiState.value = SettingsUiState(
                     settings = s,
                     facilityId = s.facilityId,
@@ -42,21 +48,37 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     autoBook = s.autoBook,
                     notifyOnFound = s.notifyOnFound,
                     manualScheduleId = s.manualScheduleId,
-                    manualFacilityId = s.manualFacilityId
+                    manualFacilityId = s.manualFacilityId,
+                    isLoadingFacilities = scheduleId.isNotEmpty()
                 )
+                if (scheduleId.isNotEmpty()) fetchFacilities(scheduleId)
             }
         }
     }
 
-    fun onFacilityIdChange(id: String)          = _uiState.update { it.copy(facilityId = id, isSaved = false) }
-    fun onFacilityNameChange(name: String)       = _uiState.update { it.copy(facilityName = name, isSaved = false) }
-    fun onStartDateChange(date: String)          = _uiState.update { it.copy(startDate = date, isSaved = false) }
-    fun onEndDateChange(date: String)            = _uiState.update { it.copy(endDate = date, isSaved = false) }
-    fun onIntervalSecondsChange(text: String)    = _uiState.update { it.copy(intervalSecondsText = text, isSaved = false) }
-    fun onAutoBookChange(v: Boolean)             = _uiState.update { it.copy(autoBook = v, isSaved = false) }
-    fun onNotifyOnFoundChange(v: Boolean)        = _uiState.update { it.copy(notifyOnFound = v, isSaved = false) }
-    fun onManualScheduleIdChange(id: String)     = _uiState.update { it.copy(manualScheduleId = id, isSaved = false) }
-    fun onManualFacilityIdChange(id: String)     = _uiState.update { it.copy(manualFacilityId = id, isSaved = false) }
+    private fun fetchFacilities(scheduleId: String) {
+        viewModelScope.launch {
+            try {
+                val resp = repository.apiClient.service.getAppointmentPage(scheduleId)
+                val html = resp.body()?.string() ?: ""
+                val facilities = repository.extractFacilitiesFromPage(html)
+                _uiState.update { it.copy(detectedFacilities = facilities, isLoadingFacilities = false) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoadingFacilities = false) }
+            }
+        }
+    }
+
+    fun onFacilitySelected(facility: FacilityFromPage) =
+        _uiState.update { it.copy(facilityId = facility.id, facilityName = facility.name, isSaved = false) }
+
+    fun onStartDateChange(date: String)       = _uiState.update { it.copy(startDate = date, isSaved = false) }
+    fun onEndDateChange(date: String)         = _uiState.update { it.copy(endDate = date, isSaved = false) }
+    fun onIntervalSecondsChange(text: String) = _uiState.update { it.copy(intervalSecondsText = text, isSaved = false) }
+    fun onAutoBookChange(v: Boolean)          = _uiState.update { it.copy(autoBook = v, isSaved = false) }
+    fun onNotifyOnFoundChange(v: Boolean)     = _uiState.update { it.copy(notifyOnFound = v, isSaved = false) }
+    fun onManualScheduleIdChange(id: String)  = _uiState.update { it.copy(manualScheduleId = id, isSaved = false) }
+    fun onManualFacilityIdChange(id: String)  = _uiState.update { it.copy(manualFacilityId = id, isSaved = false) }
 
     fun saveSettings() {
         val s = _uiState.value

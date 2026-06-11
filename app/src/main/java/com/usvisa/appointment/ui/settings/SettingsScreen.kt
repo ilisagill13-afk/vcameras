@@ -1,5 +1,6 @@
 package com.usvisa.appointment.ui.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +19,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.usvisa.appointment.data.model.CANADA_FACILITIES
+import com.usvisa.appointment.data.repository.FacilityFromPage
+import java.time.Instant
+import java.time.ZoneOffset
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,9 +32,61 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
+    var showStartDatePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
+    var facilitiesExpanded by remember { mutableStateOf(false) }
+
+    val startDatePickerState = rememberDatePickerState()
+    val endDatePickerState = rememberDatePickerState()
+
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) onBack()
     }
+
+    if (showStartDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showStartDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    startDatePickerState.selectedDateMillis?.let { millis ->
+                        val date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().toString()
+                        viewModel.onStartDateChange(date)
+                    }
+                    showStartDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartDatePicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = startDatePickerState)
+        }
+    }
+
+    if (showEndDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showEndDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    endDatePickerState.selectedDateMillis?.let { millis ->
+                        val date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().toString()
+                        viewModel.onEndDateChange(date)
+                    }
+                    showEndDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndDatePicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = endDatePickerState)
+        }
+    }
+
+    val facilities: List<FacilityFromPage> =
+        uiState.detectedFacilities.ifEmpty {
+            CANADA_FACILITIES.map { FacilityFromPage(it.id, it.city) }
+        }
 
     Scaffold(
         topBar = {
@@ -63,68 +120,136 @@ fun SettingsScreen(
             // ── Consulate / Facility ───────────────────────────────────────────
             SectionHeader(Icons.Default.Business, "Consulate (Facility)")
 
-            // Show auto-detected value if available
-            if (uiState.settings.facilityId.isNotEmpty() && uiState.manualFacilityId.isEmpty()) {
-                InfoCard(
-                    "Auto-detected: ID ${uiState.settings.facilityId} — ${uiState.settings.facilityName}",
-                    isSuccess = true
-                )
+            if (uiState.isLoadingFacilities) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Detecting consulates from your account...", fontSize = 13.sp)
+                }
+            } else if (uiState.detectedFacilities.isNotEmpty()) {
+                InfoCard("${uiState.detectedFacilities.size} consulates detected from your account", isSuccess = true)
             }
 
-            OutlinedTextField(
-                value = uiState.facilityId,
-                onValueChange = viewModel::onFacilityIdChange,
-                label = { Text("Consulate Facility ID *") },
-                leadingIcon = { Icon(Icons.Default.Business, contentDescription = null) },
-                placeholder = { Text("e.g. 94") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                supportingText = {
-                    Text(
-                        "Find this on ais.usvisa-info.com → your appointment → check URL for 'facility_id'",
-                        fontSize = 11.sp
-                    )
+            ExposedDropdownMenuBox(
+                expanded = facilitiesExpanded,
+                onExpandedChange = { if (!uiState.isLoadingFacilities) facilitiesExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = uiState.facilityName.ifEmpty { if (uiState.facilityId.isNotEmpty()) "ID: ${uiState.facilityId}" else "" },
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Consulate City *") },
+                    leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = facilitiesExpanded) },
+                    placeholder = { Text("Select a consulate city") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(),
+                    singleLine = true
+                )
+                ExposedDropdownMenu(
+                    expanded = facilitiesExpanded,
+                    onDismissRequest = { facilitiesExpanded = false }
+                ) {
+                    facilities.forEach { facility ->
+                        DropdownMenuItem(
+                            text = { Text(facility.name) },
+                            onClick = {
+                                viewModel.onFacilitySelected(facility)
+                                facilitiesExpanded = false
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                        )
+                    }
                 }
-            )
-
-            OutlinedTextField(
-                value = uiState.facilityName,
-                onValueChange = viewModel::onFacilityNameChange,
-                label = { Text("Consulate City/Name") },
-                leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
-                placeholder = { Text("e.g. Toronto") },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+            }
 
             HorizontalDivider()
 
             // ── Date Range ────────────────────────────────────────────────────
             SectionHeader(Icons.Default.DateRange, "Date Range to Monitor")
 
-            OutlinedTextField(
-                value = uiState.startDate,
-                onValueChange = viewModel::onStartDateChange,
-                label = { Text("Earliest Acceptable Date *") },
-                leadingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Next),
-                placeholder = { Text("YYYY-MM-DD") },
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { showStartDatePicker = true },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.CalendarMonth, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Start Date",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Text(
+                            uiState.startDate.ifEmpty { "Tap to select" },
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = if (uiState.startDate.isEmpty())
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                            else MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
 
-            OutlinedTextField(
-                value = uiState.endDate,
-                onValueChange = viewModel::onEndDateChange,
-                label = { Text("Latest Acceptable Date *") },
-                leadingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Next),
-                placeholder = { Text("YYYY-MM-DD") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+                Icon(
+                    Icons.Default.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { showEndDatePicker = true },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.CalendarMonth, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "End Date",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Text(
+                            uiState.endDate.ifEmpty { "Tap to select" },
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = if (uiState.endDate.isEmpty())
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                            else MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
 
             HorizontalDivider()
 
@@ -145,10 +270,7 @@ fun SettingsScreen(
                 singleLine = true,
                 supportingText = {
                     val secs = uiState.intervalSecondsText.toIntOrNull()?.coerceAtLeast(5) ?: 30
-                    Text(
-                        "Min 5s • ${secs}s interval = ${3600 / secs} checks/hour",
-                        fontSize = 11.sp
-                    )
+                    Text("Min 5s • ${secs}s interval = ${3600 / secs} checks/hour", fontSize = 11.sp)
                 }
             )
 
@@ -272,7 +394,9 @@ private fun SettingToggle(
     icon: androidx.compose.ui.graphics.vector.ImageVector
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(icon, null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
