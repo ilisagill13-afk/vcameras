@@ -56,7 +56,7 @@ data class AppSettings(
     val facilityName: String = "",
     val startDate: String = "",
     val endDate: String = "",
-    val checkIntervalMinutes: Int = 5,
+    val checkIntervalSeconds: Int = 30,    // user types exact seconds
     val isLoggedIn: Boolean = false,
     val sessionCookie: String = "",
     val csrfToken: String = "",

@@ -1,11 +1,8 @@
 package com.usvisa.appointment.ui.home
 
 import android.app.Application
-import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
 import com.usvisa.appointment.data.model.AppSettings
 import com.usvisa.appointment.data.model.MonitoringStatus
 import com.usvisa.appointment.data.preferences.PreferencesManager
@@ -21,10 +18,9 @@ import java.util.*
 
 data class HomeUiState(
     val settings: AppSettings = AppSettings(),
-    val monitoringStatus: MonitoringStatus = MonitoringStatus(),
+    val isServiceRunning: Boolean = false,
     val isCheckingNow: Boolean = false,
-    val lastCheckResult: String = "",
-    val isWorkerRunning: Boolean = false,
+    val totalChecks: Int = 0,
     val logMessages: List<String> = emptyList()
 )
 
@@ -32,12 +28,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val prefsManager = PreferencesManager(application)
     private val repository = AppointmentRepository.getInstance(application)
-    private val workManager = WorkManager.getInstance(application)
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    private val logMessages = mutableListOf<String>()
+    private val localLog = mutableListOf<String>()
 
     init {
         viewModelScope.launch {
@@ -46,88 +41,67 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Observe WorkManager state
+        // Observe service running state
         viewModelScope.launch {
-            workManager.getWorkInfosForUniqueWorkFlow(AppointmentWorker.WORK_NAME)
-                .collect { workInfos ->
-                    val isRunning = workInfos.any { info ->
-                        info.state == WorkInfo.State.RUNNING ||
-                        info.state == WorkInfo.State.ENQUEUED
-                    }
-                    _uiState.update { it.copy(isWorkerRunning = isRunning) }
+            AppointmentForegroundService.isRunning.collect { running ->
+                _uiState.update { it.copy(isServiceRunning = running) }
+            }
+        }
+
+        // Reflect service log lines in the UI
+        viewModelScope.launch {
+            AppointmentForegroundService.lastLog
+                .filter { it.isNotEmpty() }
+                .collect { logLine ->
+                    addLog(logLine, fromService = true)
                 }
+        }
+
+        // Reflect service check count
+        viewModelScope.launch {
+            AppointmentForegroundService.checkCount.collect { count ->
+                _uiState.update { it.copy(totalChecks = count) }
+            }
         }
     }
 
     fun startMonitoring() {
         val settings = _uiState.value.settings
-        if (!settings.isLoggedIn) {
-            addLog("ERROR: Not logged in")
-            return
-        }
+        if (!settings.isLoggedIn) { addLog("ERROR: Not logged in"); return }
         if (settings.startDate.isEmpty() || settings.endDate.isEmpty()) {
-            addLog("ERROR: Date range not configured. Go to Settings.")
-            return
+            addLog("ERROR: Configure date range in Settings first"); return
         }
+        val facilityId = settings.manualFacilityId.ifEmpty { settings.facilityId }
+        if (facilityId.isEmpty()) { addLog("ERROR: Set Facility ID in Settings"); return }
 
-        AppointmentWorker.schedule(getApplication(), settings.checkIntervalMinutes.toLong())
+        AppointmentForegroundService.startService(getApplication())
+        // Watchdog: WorkManager restarts service if it gets killed
+        AppointmentWorker.scheduleWatchdog(getApplication())
 
-        // Start foreground service for persistent notification
-        val serviceIntent = Intent(getApplication(), AppointmentForegroundService::class.java).apply {
-            action = AppointmentForegroundService.ACTION_START
-        }
-        try {
-            getApplication<Application>().startForegroundService(serviceIntent)
-        } catch (e: Exception) {
-            // Fallback if foreground service can't start
-        }
-
-        _uiState.update { it.copy(
-            monitoringStatus = it.monitoringStatus.copy(isRunning = true)
-        )}
-        addLog("Monitoring started — checking every ${settings.checkIntervalMinutes} minutes")
-        addLog("Date range: ${settings.startDate} → ${settings.endDate}")
-        addLog("Consulate: ${settings.facilityName}")
+        val secs = settings.checkIntervalSeconds
+        addLog("Started — checking every ${secs}s")
+        addLog("Range: ${settings.startDate} → ${settings.endDate}")
+        addLog("Consulate ID: $facilityId (${settings.facilityName})")
     }
 
     fun stopMonitoring() {
+        AppointmentForegroundService.stopService(getApplication())
         AppointmentWorker.cancel(getApplication())
-
-        val serviceIntent = Intent(getApplication(), AppointmentForegroundService::class.java).apply {
-            action = AppointmentForegroundService.ACTION_STOP
-        }
-        try {
-            getApplication<Application>().startService(serviceIntent)
-        } catch (e: Exception) { }
-
-        _uiState.update { it.copy(
-            monitoringStatus = it.monitoringStatus.copy(isRunning = false)
-        )}
         addLog("Monitoring stopped")
     }
 
     fun checkNow() {
         if (_uiState.value.isCheckingNow) return
-
         _uiState.update { it.copy(isCheckingNow = true) }
-        addLog("Checking for available slots...")
+        addLog("Manual check…")
 
         viewModelScope.launch {
             when (val result = repository.checkAndBookSlots()) {
                 is RepoResult.Success -> {
                     addLog("✓ ${result.data}")
-                    _uiState.update { it.copy(
-                        isCheckingNow = false,
-                        lastCheckResult = result.data,
-                        monitoringStatus = it.monitoringStatus.copy(
-                            lastChecked = System.currentTimeMillis(),
-                            lastResult = result.data,
-                            slotsFound = it.monitoringStatus.slotsFound + 1
-                        )
-                    )}
-
                     val settings = _uiState.value.settings
-                    if (result.data.contains(" at ") && !result.data.startsWith("Found")) {
+                    val isBooked = result.data.contains(" at ") && !result.data.startsWith("Found")
+                    if (isBooked) {
                         val parts = result.data.split(" at ")
                         NotificationHelper.notifyBookingSuccess(
                             getApplication(), parts[0], parts.getOrElse(1) { "" }, settings.facilityName
@@ -137,19 +111,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         NotificationHelper.notifySlotFound(getApplication(), result.data, settings.facilityName)
                     }
                 }
-                is RepoResult.Error -> {
-                    addLog("✗ ${result.message}")
-                    _uiState.update { it.copy(
-                        isCheckingNow = false,
-                        lastCheckResult = result.message,
-                        monitoringStatus = it.monitoringStatus.copy(
-                            lastChecked = System.currentTimeMillis(),
-                            lastResult = result.message,
-                            checkCount = it.monitoringStatus.checkCount + 1
-                        )
-                    )}
-                }
+                is RepoResult.Error -> addLog("✗ ${result.message}")
             }
+            _uiState.update { it.copy(isCheckingNow = false) }
         }
     }
 
@@ -162,11 +126,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun addLog(message: String) {
-        val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-        val logEntry = "[$timestamp] $message"
-        logMessages.add(0, logEntry)
-        if (logMessages.size > 50) logMessages.removeLastOrNull()
-        _uiState.update { it.copy(logMessages = logMessages.toList()) }
+    private fun addLog(message: String, fromService: Boolean = false) {
+        val entry = if (fromService) message  // service already has timestamp
+                    else {
+                        val ts = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+                        "[$ts] $message"
+                    }
+        localLog.add(0, entry)
+        if (localLog.size > 100) localLog.removeLastOrNull()
+        _uiState.update { it.copy(logMessages = localLog.toList()) }
     }
 }

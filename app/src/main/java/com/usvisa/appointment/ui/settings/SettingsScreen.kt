@@ -26,7 +26,6 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var intervalDropdownExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isSaved) {
         if (uiState.isSaved) onBack()
@@ -130,38 +129,28 @@ fun SettingsScreen(
             HorizontalDivider()
 
             // ── Check Interval ────────────────────────────────────────────────
-            SectionHeader(Icons.Default.Timer, "Check Interval")
+            SectionHeader(Icons.Default.Timer, "Check Interval (Seconds)")
 
-            val intervalOptions = listOf(5, 10, 15, 30, 60)
-            ExposedDropdownMenuBox(
-                expanded = intervalDropdownExpanded,
-                onExpandedChange = { intervalDropdownExpanded = it }
-            ) {
-                OutlinedTextField(
-                    value = "Every ${uiState.intervalMinutes} minutes",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Polling Interval") },
-                    leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null) },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = intervalDropdownExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor()
-                )
-                ExposedDropdownMenu(
-                    expanded = intervalDropdownExpanded,
-                    onDismissRequest = { intervalDropdownExpanded = false }
-                ) {
-                    intervalOptions.forEach { minutes ->
-                        DropdownMenuItem(
-                            text = { Text("Every $minutes minutes") },
-                            onClick = { viewModel.onIntervalChange(minutes); intervalDropdownExpanded = false },
-                            leadingIcon = {
-                                if (minutes == uiState.intervalMinutes)
-                                    Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
-                            }
-                        )
-                    }
+            OutlinedTextField(
+                value = uiState.intervalSecondsText,
+                onValueChange = viewModel::onIntervalSecondsChange,
+                label = { Text("Check every N seconds *") },
+                leadingIcon = { Icon(Icons.Default.Timer, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next
+                ),
+                placeholder = { Text("30") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                supportingText = {
+                    val secs = uiState.intervalSecondsText.toIntOrNull()?.coerceAtLeast(5) ?: 30
+                    Text(
+                        "Min 5s • ${secs}s interval = ${3600 / secs} checks/hour",
+                        fontSize = 11.sp
+                    )
                 }
-            }
+            )
 
             HorizontalDivider()
 

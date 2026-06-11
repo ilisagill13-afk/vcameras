@@ -15,7 +15,7 @@ data class SettingsUiState(
     val facilityName: String = "",
     val startDate: String = "",
     val endDate: String = "",
-    val intervalMinutes: Int = 5,
+    val intervalSecondsText: String = "30",
     val autoBook: Boolean = true,
     val notifyOnFound: Boolean = true,
     val manualScheduleId: String = "",
@@ -31,68 +31,43 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     init {
         viewModelScope.launch {
-            prefsManager.settingsFlow.first().let { settings ->
+            prefsManager.settingsFlow.first().let { s ->
                 _uiState.value = SettingsUiState(
-                    settings = settings,
-                    facilityId = settings.facilityId,
-                    facilityName = settings.facilityName,
-                    startDate = settings.startDate,
-                    endDate = settings.endDate,
-                    intervalMinutes = settings.checkIntervalMinutes,
-                    autoBook = settings.autoBook,
-                    notifyOnFound = settings.notifyOnFound,
-                    manualScheduleId = settings.manualScheduleId,
-                    manualFacilityId = settings.manualFacilityId
+                    settings = s,
+                    facilityId = s.facilityId,
+                    facilityName = s.facilityName,
+                    startDate = s.startDate,
+                    endDate = s.endDate,
+                    intervalSecondsText = s.checkIntervalSeconds.toString(),
+                    autoBook = s.autoBook,
+                    notifyOnFound = s.notifyOnFound,
+                    manualScheduleId = s.manualScheduleId,
+                    manualFacilityId = s.manualFacilityId
                 )
             }
         }
     }
 
-    fun onFacilityIdChange(id: String) {
-        _uiState.update { it.copy(facilityId = id, isSaved = false) }
-    }
-
-    fun onFacilityNameChange(name: String) {
-        _uiState.update { it.copy(facilityName = name, isSaved = false) }
-    }
-
-    fun onStartDateChange(date: String) {
-        _uiState.update { it.copy(startDate = date, isSaved = false) }
-    }
-
-    fun onEndDateChange(date: String) {
-        _uiState.update { it.copy(endDate = date, isSaved = false) }
-    }
-
-    fun onIntervalChange(minutes: Int) {
-        _uiState.update { it.copy(intervalMinutes = minutes, isSaved = false) }
-    }
-
-    fun onAutoBookChange(enabled: Boolean) {
-        _uiState.update { it.copy(autoBook = enabled, isSaved = false) }
-    }
-
-    fun onNotifyOnFoundChange(enabled: Boolean) {
-        _uiState.update { it.copy(notifyOnFound = enabled, isSaved = false) }
-    }
-
-    fun onManualScheduleIdChange(id: String) {
-        _uiState.update { it.copy(manualScheduleId = id, isSaved = false) }
-    }
-
-    fun onManualFacilityIdChange(id: String) {
-        _uiState.update { it.copy(manualFacilityId = id, isSaved = false) }
-    }
+    fun onFacilityIdChange(id: String)          = _uiState.update { it.copy(facilityId = id, isSaved = false) }
+    fun onFacilityNameChange(name: String)       = _uiState.update { it.copy(facilityName = name, isSaved = false) }
+    fun onStartDateChange(date: String)          = _uiState.update { it.copy(startDate = date, isSaved = false) }
+    fun onEndDateChange(date: String)            = _uiState.update { it.copy(endDate = date, isSaved = false) }
+    fun onIntervalSecondsChange(text: String)    = _uiState.update { it.copy(intervalSecondsText = text, isSaved = false) }
+    fun onAutoBookChange(v: Boolean)             = _uiState.update { it.copy(autoBook = v, isSaved = false) }
+    fun onNotifyOnFoundChange(v: Boolean)        = _uiState.update { it.copy(notifyOnFound = v, isSaved = false) }
+    fun onManualScheduleIdChange(id: String)     = _uiState.update { it.copy(manualScheduleId = id, isSaved = false) }
+    fun onManualFacilityIdChange(id: String)     = _uiState.update { it.copy(manualFacilityId = id, isSaved = false) }
 
     fun saveSettings() {
         val s = _uiState.value
+        val seconds = s.intervalSecondsText.trim().toIntOrNull()?.coerceAtLeast(5) ?: 30
         viewModelScope.launch {
             prefsManager.saveAppointmentSettings(
                 facilityId = s.facilityId,
                 facilityName = s.facilityName,
                 startDate = s.startDate,
                 endDate = s.endDate,
-                intervalMinutes = s.intervalMinutes,
+                intervalSeconds = seconds,
                 autoBook = s.autoBook,
                 notifyOnFound = s.notifyOnFound,
                 manualScheduleId = s.manualScheduleId,

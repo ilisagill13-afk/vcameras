@@ -1,6 +1,5 @@
 package com.usvisa.appointment.ui.home
 
-import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,8 +19,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import java.text.SimpleDateFormat
-import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,7 +29,6 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val settings = uiState.settings
-    val status = uiState.monitoringStatus
     var showLogoutDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -67,32 +63,28 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
-            // Status Card
             item {
                 MonitoringStatusCard(
-                    isRunning = uiState.isWorkerRunning,
+                    isRunning = uiState.isServiceRunning,
                     isChecking = uiState.isCheckingNow,
-                    facilityName = settings.facilityName,
+                    facilityName = settings.facilityName.ifEmpty { settings.manualFacilityId.ifEmpty { "—" } },
                     startDate = settings.startDate,
                     endDate = settings.endDate,
-                    intervalMinutes = settings.checkIntervalMinutes,
-                    lastChecked = status.lastChecked,
+                    intervalSeconds = settings.checkIntervalSeconds,
+                    totalChecks = uiState.totalChecks,
+                    isConfigured = settings.startDate.isNotEmpty() && settings.endDate.isNotEmpty(),
+                    isLoggedIn = settings.isLoggedIn,
                     onStart = { viewModel.startMonitoring() },
                     onStop = { viewModel.stopMonitoring() },
-                    onCheckNow = { viewModel.checkNow() },
-                    isConfigured = settings.startDate.isNotEmpty() && settings.endDate.isNotEmpty(),
-                    isLoggedIn = settings.isLoggedIn
+                    onCheckNow = { viewModel.checkNow() }
                 )
             }
 
-            // Config summary
-            if (settings.scheduleId.isNotEmpty()) {
-                item {
-                    ConfigSummaryCard(settings)
-                }
+            // Config summary card when logged in
+            if (settings.scheduleId.isNotEmpty() || settings.manualScheduleId.isNotEmpty()) {
+                item { ConfigSummaryCard(settings) }
             }
 
-            // Activity Log
             item {
                 Text(
                     "Activity Log",
@@ -107,12 +99,10 @@ fun HomeScreen(
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Text(
-                            "No activity yet. Press 'Check Now' or start monitoring.",
+                            "No activity yet. Press 'Check Now' or Start Monitoring.",
                             modifier = Modifier.padding(16.dp),
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                             fontSize = 13.sp
@@ -120,9 +110,7 @@ fun HomeScreen(
                     }
                 }
             } else {
-                items(uiState.logMessages) { log ->
-                    LogEntry(log)
-                }
+                items(uiState.logMessages) { log -> LogEntry(log) }
             }
         }
     }
@@ -137,9 +125,7 @@ fun HomeScreen(
                     showLogoutDialog = false
                     viewModel.logout()
                     onLogout()
-                }) {
-                    Text("Sign Out", color = MaterialTheme.colorScheme.error)
-                }
+                }) { Text("Sign Out", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") }
@@ -155,102 +141,80 @@ private fun MonitoringStatusCard(
     facilityName: String,
     startDate: String,
     endDate: String,
-    intervalMinutes: Int,
-    lastChecked: Long,
+    intervalSeconds: Int,
+    totalChecks: Int,
     isConfigured: Boolean,
     isLoggedIn: Boolean,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onCheckNow: () -> Unit
 ) {
+    val statusColor = when {
+        isChecking -> Color(0xFFFFA726)
+        isRunning  -> Color(0xFF66BB6A)
+        else       -> Color(0xFF546E7A)
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isRunning) Color(0xFF0D2137) else MaterialTheme.colorScheme.surface
+            containerColor = if (isRunning) Color(0xFF0D2137)
+                             else MaterialTheme.colorScheme.surface
         ),
-        border = if (isRunning) {
+        border = if (isRunning)
             androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1565C0))
-        } else null
+        else null
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            // Status indicator row
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .clip(CircleShape)
-                        .background(
-                            when {
-                                isChecking -> Color(0xFFFFA726)
-                                isRunning -> Color(0xFF66BB6A)
-                                else -> Color(0xFF546E7A)
-                            }
-                        )
-                )
+            // Status row
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(statusColor))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = when {
-                        isChecking -> "Checking..."
-                        isRunning -> "Monitoring Active"
-                        else -> "Monitoring Stopped"
+                        isChecking -> "Checking…"
+                        isRunning  -> "Monitoring Active"
+                        else       -> "Stopped"
                     },
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 18.sp,
-                    color = when {
-                        isChecking -> Color(0xFFFFA726)
-                        isRunning -> Color(0xFF66BB6A)
-                        else -> MaterialTheme.colorScheme.onSurface
-                    }
+                    color = statusColor
                 )
+                if (totalChecks > 0) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        "$totalChecks checks",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
             }
 
             if (isRunning && startDate.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "Looking for slots between $startDate → $endDate",
+                    "Dates: $startDate → $endDate",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
                 Text(
-                    "Checking every $intervalMinutes min • $facilityName",
+                    "Every ${intervalSeconds}s • $facilityName",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
-                if (lastChecked > 0) {
-                    Text(
-                        "Last check: ${formatTime(lastChecked)}",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
-                }
-            } else if (!isConfigured) {
+            } else if (!isConfigured && isLoggedIn) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = Color(0xFFFFA726),
-                        modifier = Modifier.size(16.dp)
-                    )
+                    Icon(Icons.Default.Warning, null, tint = Color(0xFFFFA726), modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        "Configure date range in Settings first",
-                        fontSize = 13.sp,
-                        color = Color(0xFFFFA726)
-                    )
+                    Text("Configure Settings before starting", fontSize = 13.sp, color = Color(0xFFFFA726))
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 if (!isRunning) {
                     Button(
                         onClick = onStart,
@@ -258,7 +222,7 @@ private fun MonitoringStatusCard(
                         enabled = isConfigured && isLoggedIn && !isChecking,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Start")
                     }
@@ -268,7 +232,7 @@ private fun MonitoringStatusCard(
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF5350))
                     ) {
-                        Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Stop, null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Stop")
                     }
@@ -282,7 +246,7 @@ private fun MonitoringStatusCard(
                     if (isChecking) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     } else {
-                        Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Search, null, modifier = Modifier.size(18.dp))
                     }
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(if (isChecking) "Checking" else "Check Now")
@@ -294,30 +258,25 @@ private fun MonitoringStatusCard(
 
 @Composable
 private fun ConfigSummaryCard(settings: com.usvisa.appointment.data.model.AppSettings) {
+    val effectiveScheduleId = settings.manualScheduleId.ifEmpty { settings.scheduleId }
+    val effectiveFacilityId = settings.manualFacilityId.ifEmpty { settings.facilityId }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                "Configuration",
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp
-            )
-            ConfigRow(Icons.Default.Business, "Consulate", settings.facilityName)
-            if (settings.startDate.isNotEmpty() && settings.endDate.isNotEmpty()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Configuration", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            if (effectiveScheduleId.isNotEmpty())
+                ConfigRow(Icons.Default.Tag, "Schedule ID", effectiveScheduleId)
+            if (effectiveFacilityId.isNotEmpty())
+                ConfigRow(Icons.Default.Business, "Facility ID", "$effectiveFacilityId — ${settings.facilityName}")
+            if (settings.startDate.isNotEmpty())
                 ConfigRow(Icons.Default.DateRange, "Date Range", "${settings.startDate} → ${settings.endDate}")
-            }
-            ConfigRow(Icons.Default.Timer, "Check Interval", "${settings.checkIntervalMinutes} minutes")
-            ConfigRow(
-                Icons.Default.BookmarkAdd,
-                "Auto-Book",
-                if (settings.autoBook) "Enabled" else "Notify only"
-            )
-            if (settings.scheduleId.isNotEmpty()) {
-                ConfigRow(Icons.Default.Tag, "Schedule ID", settings.scheduleId)
-            }
+            ConfigRow(Icons.Default.Timer, "Interval", "${settings.checkIntervalSeconds}s")
+            ConfigRow(Icons.Default.BookmarkAdd, "Auto-Book",
+                if (settings.autoBook) "Enabled" else "Notify only")
         }
     }
 }
@@ -325,21 +284,20 @@ private fun ConfigSummaryCard(settings: com.usvisa.appointment.data.model.AppSet
 @Composable
 private fun ConfigRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+        Icon(icon, null, modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
         Spacer(modifier = Modifier.width(4.dp))
-        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Text(value, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
 private fun LogEntry(log: String) {
     val color = when {
-        log.contains("✓") -> Color(0xFF4CAF50)
-        log.contains("✗") || log.contains("ERROR") -> Color(0xFFEF5350)
-        log.contains("Booked") -> Color(0xFF66BB6A)
+        log.contains("BOOKED") || log.contains("✓") -> Color(0xFF4CAF50)
+        log.contains("✗") || log.contains("ERROR")  -> Color(0xFFEF5350)
+        log.contains("Started")                      -> Color(0xFF42A5F5)
         else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
     }
     Text(
@@ -347,12 +305,6 @@ private fun LogEntry(log: String) {
         fontSize = 12.sp,
         fontFamily = FontFamily.Monospace,
         color = color,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp)
+        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)
     )
-}
-
-private fun formatTime(timestamp: Long): String {
-    return SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(timestamp))
 }

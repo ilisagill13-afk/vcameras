@@ -22,7 +22,7 @@ class PreferencesManager(private val context: Context) {
         val KEY_FACILITY_NAME = stringPreferencesKey("facility_name")
         val KEY_START_DATE = stringPreferencesKey("start_date")
         val KEY_END_DATE = stringPreferencesKey("end_date")
-        val KEY_INTERVAL = intPreferencesKey("check_interval")
+        val KEY_INTERVAL_SECONDS = intPreferencesKey("check_interval_seconds")
         val KEY_IS_LOGGED_IN = booleanPreferencesKey("is_logged_in")
         val KEY_SESSION_COOKIE = stringPreferencesKey("session_cookie")
         val KEY_CSRF_TOKEN = stringPreferencesKey("csrf_token")
@@ -43,7 +43,7 @@ class PreferencesManager(private val context: Context) {
                 facilityName = prefs[KEY_FACILITY_NAME] ?: "",
                 startDate = prefs[KEY_START_DATE] ?: "",
                 endDate = prefs[KEY_END_DATE] ?: "",
-                checkIntervalMinutes = prefs[KEY_INTERVAL] ?: 5,
+                checkIntervalSeconds = prefs[KEY_INTERVAL_SECONDS] ?: 30,
                 isLoggedIn = prefs[KEY_IS_LOGGED_IN] ?: false,
                 sessionCookie = prefs[KEY_SESSION_COOKIE] ?: "",
                 csrfToken = prefs[KEY_CSRF_TOKEN] ?: "",
@@ -75,7 +75,7 @@ class PreferencesManager(private val context: Context) {
         facilityName: String,
         startDate: String,
         endDate: String,
-        intervalMinutes: Int,
+        intervalSeconds: Int,
         autoBook: Boolean,
         notifyOnFound: Boolean,
         manualScheduleId: String,
@@ -86,7 +86,7 @@ class PreferencesManager(private val context: Context) {
             prefs[KEY_FACILITY_NAME] = facilityName
             prefs[KEY_START_DATE] = startDate
             prefs[KEY_END_DATE] = endDate
-            prefs[KEY_INTERVAL] = intervalMinutes
+            prefs[KEY_INTERVAL_SECONDS] = intervalSeconds
             prefs[KEY_AUTO_BOOK] = autoBook
             prefs[KEY_NOTIFY_ON_FOUND] = notifyOnFound
             prefs[KEY_MANUAL_SCHEDULE_ID] = manualScheduleId
