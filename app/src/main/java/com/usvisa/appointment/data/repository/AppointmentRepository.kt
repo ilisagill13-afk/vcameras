@@ -20,7 +20,6 @@ class AppointmentRepository(private val context: Context) {
 
     companion object {
         private const val TAG = "AppointmentRepo"
-        private const val HOST = "ais.usvisa-info.com"
         private val DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
         @Volatile
@@ -35,120 +34,28 @@ class AppointmentRepository(private val context: Context) {
     val apiClient = ApiClient(context)
     private val prefs = PreferencesManager(context)
 
-    // ─── HTML Parsing ──────────────────────────────────────────────────────────
+    // ─── HTML Helpers ──────────────────────────────────────────────────────────
 
     private fun extractCsrfToken(html: String): String? {
-        val patterns = listOf(
+        listOf(
             Regex("""<meta\s+name="csrf-token"\s+content="([^"]+)""""),
             Regex("""<meta\s+content="([^"]+)"\s+name="csrf-token""""),
-            Regex("""input[^>]+name="authenticity_token"[^>]+value="([^"]+)""""),
-            Regex("""authenticity_token.*?value="([^"]+)"""")
-        )
-        for (p in patterns) {
-            val m = p.find(html)
-            if (m != null) return m.groupValues[1]
-        }
+            Regex("""name="authenticity_token"[^>]+value="([^"]+)"""")
+        ).forEach { p -> p.find(html)?.let { return it.groupValues[1] } }
         return null
     }
 
-    // Extracts all /schedule/{id}/ occurrences from HTML or URL
-    private fun extractScheduleIds(html: String, url: String = ""): List<String> {
-        val pattern = Regex("""/schedule/(\d+)/""")
-        val fromUrl = pattern.find(url)?.groupValues?.get(1)
-        val fromHtml = pattern.findAll(html).map { it.groupValues[1] }.toList()
-        return (listOfNotNull(fromUrl) + fromHtml).distinct()
-    }
-
-    // Extracts facility options from the appointment form select element
     fun extractFacilitiesFromPage(html: String): List<FacilityFromPage> {
-        val selectRegex = Regex(
+        val selectRx = Regex(
             """<select[^>]*name="appointments\[consulate_appointment\]\[facility_id\]"[^>]*>(.*?)</select>""",
             setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE)
         )
-        val optionRegex = Regex("""<option\s+value="(\d+)"[^>]*>([^<]+)</option>""")
-
-        val selectMatch = selectRegex.find(html) ?: return emptyList()
-        return optionRegex.findAll(selectMatch.groupValues[1]).map { m ->
-            FacilityFromPage(m.groupValues[1].trim(), m.groupValues[2].trim())
-        }.filter { it.id.isNotEmpty() }.toList()
-    }
-
-    // ─── Login ─────────────────────────────────────────────────────────────────
-
-    suspend fun login(email: String, password: String): RepoResult<LoginResult> {
-        return try {
-            // 1. GET login page → CSRF token + _yatri_session cookie
-            val pageResp = apiClient.service.getLoginPage()
-            if (!pageResp.isSuccessful)
-                return RepoResult.Error("Cannot load login page (HTTP ${pageResp.code()})")
-
-            val pageHtml = pageResp.body()?.string() ?: ""
-            val csrfToken = extractCsrfToken(pageHtml)
-                ?: return RepoResult.Error("Could not read security token from login page")
-
-            Log.d(TAG, "CSRF token obtained: ${csrfToken.take(15)}…")
-
-            // 2. POST JSON credentials — website returns JSON redirect path
-            val loginResp = apiClient.service.loginJson(
-                csrfToken = csrfToken,
-                request = LoginJsonRequest(
-                    user = UserCredentials(email = email, password = password)
-                )
-            )
-
-            val code = loginResp.code()
-            Log.d(TAG, "Login HTTP $code")
-
-            if (!loginResp.isSuccessful) {
-                // 401/422 → wrong credentials
-                val errBody = loginResp.errorBody()?.string() ?: ""
-                val errMsg = Regex(""""error"\s*:\s*"([^"]+)"""").find(errBody)?.groupValues?.get(1)
-                return RepoResult.Error(errMsg ?: "Login failed (HTTP $code). Check email/password.")
-            }
-
-            val loginJson = loginResp.body()
-            if (loginJson?.error != null) {
-                return RepoResult.Error(loginJson.error)
-            }
-
-            // 3. Follow redirect_path to account/groups page
-            val redirectPath = loginJson?.redirectPath
-                ?: return RepoResult.Error("Login succeeded but no redirect. Try re-logging from browser first.")
-
-            Log.d(TAG, "Login redirect: $redirectPath")
-
-            // redirectPath is like "/en-ca/niv/groups/12345" or "/en-ca/niv/schedule/12345/..."
-            val groupsResp = apiClient.service.getPage("https://$HOST$redirectPath")
-            val groupsHtml = groupsResp.body()?.string() ?: ""
-            val groupsUrl = groupsResp.raw().request.url.toString()
-
-            // 4. Extract schedule IDs from the groups/account page
-            val scheduleIds = extractScheduleIds(groupsHtml, groupsUrl)
-            Log.d(TAG, "Found schedule IDs: $scheduleIds")
-
-            val scheduleId = scheduleIds.firstOrNull()
-                ?: return RepoResult.Error(
-                    "Logged in, but no visa application found. " +
-                    "Make sure you have a scheduled visa appointment in your account."
-                )
-
-            // 5. Load appointment page to get real facility IDs
-            val apptResp = apiClient.service.getAppointmentPage(scheduleId)
-            val apptHtml = apptResp.body()?.string() ?: ""
-            val freshCsrf = extractCsrfToken(apptHtml) ?: csrfToken
-            val facilities = extractFacilitiesFromPage(apptHtml)
-
-            val sessionCookie = apiClient.cookieJar.getSessionCookie(HOST)
-            prefs.saveSessionData(scheduleId, sessionCookie, freshCsrf)
-            prefs.saveLoginInfo(email, password)
-
-            Log.d(TAG, "Login complete. Schedule=$scheduleId, Facilities=$facilities")
-            RepoResult.Success(LoginResult(scheduleId, facilities, freshCsrf))
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Login error", e)
-            RepoResult.Error("Network error: ${e.message}")
-        }
+        val optRx = Regex("""<option\s+value="(\d+)"[^>]*>([^<]+)</option>""")
+        val sel = selectRx.find(html) ?: return emptyList()
+        return optRx.findAll(sel.groupValues[1])
+            .map { FacilityFromPage(it.groupValues[1].trim(), it.groupValues[2].trim()) }
+            .filter { it.id.isNotEmpty() }
+            .toList()
     }
 
     // ─── Slot Checking ─────────────────────────────────────────────────────────
@@ -162,12 +69,13 @@ class AppointmentRepository(private val context: Context) {
         return try {
             val resp = apiClient.service.getAvailableDays(scheduleId, facilityId)
 
-            if (resp.code() == 401 || resp.code() == 403) {
-                return RepoResult.Error("Session expired", resp.code())
+            when (resp.code()) {
+                401, 403 -> return RepoResult.Error(
+                    "Session expired — open app and log in again", resp.code()
+                )
             }
-            if (!resp.isSuccessful) {
+            if (!resp.isSuccessful)
                 return RepoResult.Error("HTTP ${resp.code()} fetching available days")
-            }
 
             val all = resp.body() ?: emptyList()
             val filtered = all.filter { day ->
@@ -177,11 +85,11 @@ class AppointmentRepository(private val context: Context) {
                 }.getOrDefault(false)
             }.sortedBy { it.date }
 
-            Log.d(TAG, "Available days total=${all.size}, in range=${filtered.size}")
+            Log.d(TAG, "Available: total=${all.size}, in range=${filtered.size}")
             RepoResult.Success(filtered)
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching days", e)
+            Log.e(TAG, "Days error", e)
             RepoResult.Error("Network error: ${e.message}")
         }
     }
@@ -195,10 +103,8 @@ class AppointmentRepository(private val context: Context) {
             val resp = apiClient.service.getAvailableTimes(scheduleId, facilityId, date)
             if (!resp.isSuccessful)
                 return RepoResult.Error("HTTP ${resp.code()} fetching times for $date")
-
             RepoResult.Success(resp.body() ?: AvailableTimes(emptyList(), emptyList()))
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching times", e)
             RepoResult.Error("Network error: ${e.message}")
         }
     }
@@ -212,7 +118,6 @@ class AppointmentRepository(private val context: Context) {
         endDate: LocalDate
     ): RepoResult<String> {
 
-        // 1. Get available days in range
         val daysResult = getAvailableDays(scheduleId, facilityId, startDate, endDate)
         if (daysResult is RepoResult.Error) return daysResult
 
@@ -221,9 +126,8 @@ class AppointmentRepository(private val context: Context) {
             return RepoResult.Error("No available slots in the selected date range")
 
         val earliest = days.first()
-        Log.d(TAG, "Earliest slot: ${earliest.date}")
+        Log.d(TAG, "Earliest: ${earliest.date}")
 
-        // 2. Get time slots for earliest date
         val timesResult = getAvailableTimes(scheduleId, facilityId, earliest.date)
         if (timesResult is RepoResult.Error) return timesResult
 
@@ -233,18 +137,16 @@ class AppointmentRepository(private val context: Context) {
             return RepoResult.Error("No time slots on ${earliest.date}")
 
         val selectedTime = timeList.first()
-        Log.d(TAG, "Booking: ${earliest.date} at $selectedTime")
 
-        // 3. Get a fresh CSRF token (required for the PUT/POST booking)
-        val apptResp = apiClient.service.getAppointmentPage(scheduleId)
-        val apptHtml = apptResp.body()?.string() ?: ""
+        // Refresh CSRF token before booking
+        val apptResp = runCatching { apiClient.service.getAppointmentPage(scheduleId) }.getOrNull()
+        val apptHtml = apptResp?.body()?.string() ?: ""
         val csrf = extractCsrfToken(apptHtml)
             ?: prefs.settingsFlow.first().csrfToken
 
         if (csrf.isEmpty())
-            return RepoResult.Error("Could not obtain security token for booking")
+            return RepoResult.Error("Could not get security token — please re-login")
 
-        // 4. Submit booking
         return try {
             val bookResp = apiClient.service.bookAppointment(
                 scheduleId = scheduleId,
@@ -253,47 +155,42 @@ class AppointmentRepository(private val context: Context) {
                 date = earliest.date,
                 time = selectedTime
             )
-
-            val respCode = bookResp.code()
-            val respBody = bookResp.body()?.string() ?: ""
-            Log.d(TAG, "Booking HTTP $respCode")
+            val code = bookResp.code()
+            val body = bookResp.body()?.string() ?: ""
+            Log.d(TAG, "Booking HTTP $code")
 
             when {
-                bookResp.isSuccessful || respCode == 302 -> {
-                    // Check for inline error message in HTML response
-                    val errorMsg = extractBookingError(respBody)
-                    if (errorMsg != null)
-                        RepoResult.Error("Booking rejected: $errorMsg")
-                    else
-                        RepoResult.Success("${earliest.date} at $selectedTime")
+                bookResp.isSuccessful || code == 302 -> {
+                    val err = extractInlineError(body)
+                    if (err != null) RepoResult.Error("Booking rejected: $err")
+                    else RepoResult.Success("${earliest.date} at $selectedTime")
                 }
-                respCode == 422 -> {
-                    val errorMsg = extractBookingError(respBody)
-                    RepoResult.Error(errorMsg ?: "Booking rejected (slot may be taken)")
-                }
-                else -> RepoResult.Error("Booking failed HTTP $respCode")
+                code == 422 -> RepoResult.Error(
+                    extractInlineError(body) ?: "Slot was taken — will retry"
+                )
+                code == 401 || code == 403 -> RepoResult.Error(
+                    "Session expired — open app and log in again", code
+                )
+                else -> RepoResult.Error("Booking failed HTTP $code")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Booking exception", e)
             RepoResult.Error("Booking error: ${e.message}")
         }
     }
 
-    private fun extractBookingError(html: String): String? {
-        val patterns = listOf(
+    private fun extractInlineError(html: String): String? {
+        listOf(
             Regex("""<div[^>]*class="[^"]*error[^"]*"[^>]*>(.*?)</div>""", RegexOption.DOT_MATCHES_ALL),
-            Regex("""<p[^>]*class="[^"]*error[^"]*"[^>]*>(.*?)</p>""", RegexOption.DOT_MATCHES_ALL),
-            Regex("""alert-error[^>]*>(.*?)</""", RegexOption.DOT_MATCHES_ALL)
-        )
-        for (p in patterns) {
-            val m = p.find(html) ?: continue
-            val text = m.groupValues[1].replace(Regex("<[^>]+>"), "").trim()
-            if (text.isNotEmpty()) return text
+            Regex("""<p[^>]*class="[^"]*error[^"]*"[^>]*>(.*?)</p>""", RegexOption.DOT_MATCHES_ALL)
+        ).forEach { p ->
+            val text = p.find(html)?.groupValues?.get(1)
+                ?.replace(Regex("<[^>]+>"), "")?.trim()
+            if (!text.isNullOrEmpty()) return text
         }
         return null
     }
 
-    // ─── Main Entry Point ──────────────────────────────────────────────────────
+    // ─── Main entry point called by service / ViewModel ───────────────────────
 
     suspend fun checkAndBookSlots(): RepoResult<String> {
         val settings = prefs.settingsFlow.first()
@@ -301,14 +198,13 @@ class AppointmentRepository(private val context: Context) {
         if (!settings.isLoggedIn)
             return RepoResult.Error("Not logged in")
 
-        // Use manual override if provided, else auto-detected
         val scheduleId = settings.manualScheduleId.ifEmpty { settings.scheduleId }
         val facilityId = settings.manualFacilityId.ifEmpty { settings.facilityId }
 
         if (scheduleId.isEmpty())
-            return RepoResult.Error("Schedule ID not found. Please log in again or enter it manually in Settings.")
+            return RepoResult.Error("Schedule ID missing — re-login or set manually in Settings")
         if (facilityId.isEmpty())
-            return RepoResult.Error("Facility (Consulate) ID not set. Please configure it in Settings.")
+            return RepoResult.Error("Facility ID not set — go to Settings")
         if (settings.startDate.isEmpty() || settings.endDate.isEmpty())
             return RepoResult.Error("Date range not configured")
 
@@ -317,44 +213,18 @@ class AppointmentRepository(private val context: Context) {
         val endDate = runCatching { LocalDate.parse(settings.endDate, DATE_FORMAT) }.getOrNull()
             ?: return RepoResult.Error("Invalid end date: ${settings.endDate}")
 
-        val result = if (settings.autoBook) {
+        return if (settings.autoBook) {
             bookEarliestAvailableSlot(scheduleId, facilityId, startDate, endDate)
         } else {
             val daysResult = getAvailableDays(scheduleId, facilityId, startDate, endDate)
             when (daysResult) {
                 is RepoResult.Success ->
-                    if (daysResult.data.isEmpty())
-                        RepoResult.Error("No slots in the selected range")
-                    else
-                        RepoResult.Success("Found ${daysResult.data.size} slots. Earliest: ${daysResult.data.first().date}")
+                    if (daysResult.data.isEmpty()) RepoResult.Error("No slots in range")
+                    else RepoResult.Success(
+                        "Found ${daysResult.data.size} slot(s). Earliest: ${daysResult.data.first().date}"
+                    )
                 is RepoResult.Error -> daysResult
             }
         }
-
-        // Auto re-login on session expiry, then retry once
-        if (result is RepoResult.Error && (result.code == 401 || result.code == 403)) {
-            Log.d(TAG, "Session expired — re-logging in")
-            val fresh = prefs.settingsFlow.first()
-            if (fresh.email.isEmpty()) return result
-            val loginResult = login(fresh.email, fresh.password)
-            if (loginResult is RepoResult.Error) return loginResult
-
-            // Retry with fresh session
-            return checkAndBookSlots()
-        }
-
-        return result
-    }
-
-    suspend fun relogin(): Boolean {
-        val s = prefs.settingsFlow.first()
-        if (s.email.isEmpty() || s.password.isEmpty()) return false
-        return login(s.email, s.password) is RepoResult.Success
     }
 }
-
-data class LoginResult(
-    val scheduleId: String,
-    val facilities: List<FacilityFromPage>,
-    val csrfToken: String
-)

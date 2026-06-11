@@ -36,17 +36,31 @@ fun LoginScreen(
     val focusManager = LocalFocusManager.current
     var passwordVisible by remember { mutableStateOf(false) }
 
+    // Navigate away when login completes
     LaunchedEffect(uiState.isLoggedIn) {
         if (uiState.isLoggedIn) onLoginSuccess()
+    }
+
+    // Show full-screen WebView overlay when authenticating
+    if (uiState.showWebView) {
+        WebViewLoginScreen(
+            email = uiState.email,
+            password = uiState.password,
+            onSuccess = { scheduleId, csrf, cookies ->
+                viewModel.onWebViewLoginSuccess(scheduleId, csrf, cookies)
+            },
+            onError = { error ->
+                viewModel.onWebViewLoginError(error)
+            }
+        )
+        return
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                Brush.verticalGradient(
-                    colors = listOf(Color(0xFF0D1B2A), Color(0xFF1B3A5C))
-                )
+                Brush.verticalGradient(listOf(Color(0xFF0D1B2A), Color(0xFF1B3A5C)))
             )
     ) {
         Column(
@@ -57,7 +71,6 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Logo / Header
             Icon(
                 imageVector = Icons.Default.Flight,
                 contentDescription = null,
@@ -65,30 +78,16 @@ fun LoginScreen(
                 tint = Color(0xFF4FC3F7)
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "US Visa Appointment",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = "Auto-Booking System",
-                fontSize = 16.sp,
-                color = Color(0xFF90CAF9),
-                textAlign = TextAlign.Center
-            )
+            Text("US Visa Appointment", fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                color = Color.White, textAlign = TextAlign.Center)
+            Text("Auto-Booking System", fontSize = 16.sp, color = Color(0xFF90CAF9),
+                textAlign = TextAlign.Center)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "ais.usvisa-info.com • Canada",
-                fontSize = 12.sp,
-                color = Color(0xFF64B5F6),
-                textAlign = TextAlign.Center
-            )
+            Text("ais.usvisa-info.com • Canada", fontSize = 12.sp, color = Color(0xFF64B5F6),
+                textAlign = TextAlign.Center)
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // Login Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -98,78 +97,53 @@ fun LoginScreen(
                     modifier = Modifier.padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = "Sign In",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
+                    Text("Sign In", fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
+                        color = Color.White)
 
                     OutlinedTextField(
                         value = uiState.email,
                         onValueChange = viewModel::onEmailChange,
                         label = { Text("Email Address") },
-                        leadingIcon = {
-                            Icon(Icons.Default.Email, contentDescription = null)
-                        },
+                        leadingIcon = { Icon(Icons.Default.Email, null) },
                         keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Email,
-                            imeAction = ImeAction.Next
+                            keyboardType = KeyboardType.Email, imeAction = ImeAction.Next
                         ),
                         keyboardActions = KeyboardActions(
                             onNext = { focusManager.moveFocus(FocusDirection.Down) }
                         ),
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedLabelColor = Color(0xFF4FC3F7),
-                            unfocusedLabelColor = Color(0xFF90CAF9),
-                            focusedBorderColor = Color(0xFF4FC3F7),
-                            unfocusedBorderColor = Color(0xFF37474F)
-                        )
+                        colors = fieldColors()
                     )
 
                     OutlinedTextField(
                         value = uiState.password,
                         onValueChange = viewModel::onPasswordChange,
                         label = { Text("Password") },
-                        leadingIcon = {
-                            Icon(Icons.Default.Lock, contentDescription = null)
-                        },
+                        leadingIcon = { Icon(Icons.Default.Lock, null) },
                         trailingIcon = {
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {
                                 Icon(
-                                    imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = if (passwordVisible) "Hide" else "Show"
+                                    if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = null
                                 )
                             }
                         },
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        visualTransformation = if (passwordVisible) VisualTransformation.None
+                                               else PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
-                            imeAction = ImeAction.Done
+                            keyboardType = KeyboardType.Password, imeAction = ImeAction.Done
                         ),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                focusManager.clearFocus()
-                                viewModel.login()
-                            }
-                        ),
+                        keyboardActions = KeyboardActions(onDone = {
+                            focusManager.clearFocus()
+                            viewModel.startWebViewLogin()
+                        }),
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedLabelColor = Color(0xFF4FC3F7),
-                            unfocusedLabelColor = Color(0xFF90CAF9),
-                            focusedBorderColor = Color(0xFF4FC3F7),
-                            unfocusedBorderColor = Color(0xFF37474F)
-                        )
+                        colors = fieldColors()
                     )
 
-                    // Show detected facilities after successful login
+                    // Show detected facilities after login
                     if (uiState.detectedFacilities.isNotEmpty()) {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF0D2E0D)),
@@ -185,7 +159,8 @@ fun LoginScreen(
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 uiState.detectedFacilities.forEach { f ->
-                                    Text("• ${f.name} — ID: ${f.id}", color = Color(0xFFA5D6A7), fontSize = 12.sp)
+                                    Text("• ${f.name}  —  ID: ${f.id}",
+                                        color = Color(0xFFA5D6A7), fontSize = 12.sp)
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text("Copy your consulate's ID to Settings.",
@@ -199,22 +174,12 @@ fun LoginScreen(
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF3D0000)),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.ErrorOutline,
-                                    contentDescription = null,
-                                    tint = Color(0xFFEF5350),
-                                    modifier = Modifier.size(18.dp)
-                                )
+                            Row(modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.ErrorOutline, null,
+                                    tint = Color(0xFFEF5350), modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = uiState.error,
-                                    color = Color(0xFFEF9A9A),
-                                    fontSize = 13.sp
-                                )
+                                Text(uiState.error, color = Color(0xFFEF9A9A), fontSize = 13.sp)
                             }
                         }
                     }
@@ -222,27 +187,23 @@ fun LoginScreen(
                     Button(
                         onClick = {
                             focusManager.clearFocus()
-                            viewModel.login()
+                            viewModel.startWebViewLogin()
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
                         enabled = !uiState.isLoading,
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0))
                     ) {
                         if (uiState.isLoading) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
+                                modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Signing in...", color = Color.White)
+                            Text("Signing in…", color = Color.White)
                         } else {
-                            Icon(Icons.Default.Login, contentDescription = null, tint = Color.White)
+                            Icon(Icons.Default.Login, null, tint = Color.White)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Sign In", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                            Text("Sign In", color = Color.White,
+                                fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                         }
                     }
                 }
@@ -250,11 +211,20 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "Your credentials are stored securely on your device\nand used only to access ais.usvisa-info.com",
-                fontSize = 12.sp,
-                color = Color(0xFF546E7A),
-                textAlign = TextAlign.Center
+                "Login opens a secure browser session on your device.\n" +
+                "Credentials are never stored in plain text.",
+                fontSize = 12.sp, color = Color(0xFF546E7A), textAlign = TextAlign.Center
             )
         }
     }
 }
+
+@Composable
+private fun fieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = Color.White,
+    unfocusedTextColor = Color.White,
+    focusedLabelColor = Color(0xFF4FC3F7),
+    unfocusedLabelColor = Color(0xFF90CAF9),
+    focusedBorderColor = Color(0xFF4FC3F7),
+    unfocusedBorderColor = Color(0xFF37474F)
+)
