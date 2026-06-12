@@ -88,10 +88,14 @@ class AppointmentForegroundService : Service() {
             _isRunning.value = true
             _checkCount.value = 0
 
-            // Ping the appointment page every 20 min to keep _yatri_session alive
-            // (server session timeout is ~30 min; 20 min gives a safe 10-min buffer)
+            // Ping every 20 min to keep _yatri_session alive (rolling-expiry sessions)
             val keepaliveIntervalMs = 20 * 60 * 1000L
             var lastKeepaliveMs = System.currentTimeMillis()
+
+            // Full re-login every 90 min handles fixed-expiry sessions (expire ~2h after login
+            // regardless of activity). This creates a fresh session before the old one dies.
+            val reLoginIntervalMs = 90 * 60 * 1000L
+            var lastReLoginMs = System.currentTimeMillis()
 
             while (isActive) {
                 val settings = prefs.settingsFlow.first()
@@ -164,14 +168,33 @@ class AppointmentForegroundService : Service() {
                 log("Next check in ${actualDelay}s")
                 delay(actualDelay * 1000L)
 
-                // Session keepalive: ping every 25 min so _yatri_session never times out
                 val now = System.currentTimeMillis()
+
+                // Proactive re-login every 90 min — refreshes _yatri_session before it dies
+                if (now - lastReLoginMs >= reLoginIntervalMs) {
+                    log("Refreshing session (proactive re-login)…")
+                    val ok = repo.reLogin()
+                    lastReLoginMs = now
+                    if (ok) log("  Session refreshed via re-login")
+                    else log("  Proactive re-login failed (Cloudflare?) — keepalive will maintain session")
+                }
+
+                // Keepalive ping every 20 min for rolling-expiry sessions
                 if (now - lastKeepaliveMs >= keepaliveIntervalMs) {
-                    log("Keepalive ping…")
                     val ok = repo.keepAlive()
                     lastKeepaliveMs = now
-                    if (!ok) log("  Keepalive warning: server returned unexpected response")
-                    else log("  Session refreshed")
+                    if (ok) {
+                        log("  Session keepalive: OK")
+                    } else {
+                        // 302 = session already expired, try emergency re-login
+                        log("  Session expired early — attempting emergency re-login…")
+                        if (repo.reLogin()) {
+                            lastReLoginMs = now
+                            log("    Re-login OK, session restored")
+                        } else {
+                            log("    Emergency re-login failed (Cloudflare). Open app to log in.")
+                        }
+                    }
                 }
             }
         }

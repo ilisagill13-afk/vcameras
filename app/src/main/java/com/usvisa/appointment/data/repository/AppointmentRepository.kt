@@ -295,7 +295,8 @@ class AppointmentRepository(private val context: Context) {
             val scheduleId = settings.manualScheduleId.ifEmpty { settings.scheduleId }
             if (scheduleId.isEmpty()) return false
             val resp = apiClient.service.getAppointmentPage(scheduleId)
-            val ok = resp.isSuccessful || resp.code() == 302
+            // 302 means session expired (redirect to login) — NOT a success
+            val ok = resp.isSuccessful
             Log.d(TAG, "Keepalive HTTP ${resp.code()}, ok=$ok")
             ok
         } catch (e: Exception) {
