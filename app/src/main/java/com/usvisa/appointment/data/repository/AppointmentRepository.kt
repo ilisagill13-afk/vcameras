@@ -60,6 +60,43 @@ class AppointmentRepository(private val context: Context) {
 
     // ─── Slot Checking ─────────────────────────────────────────────────────────
 
+    // ─── Auto Re-Login ─────────────────────────────────────────────────────────
+
+    suspend fun reLogin(): Boolean {
+        return try {
+            val settings = prefs.settingsFlow.first()
+            if (settings.email.isEmpty() || settings.password.isEmpty()) return false
+
+            // GET login page → fresh CSRF token (uses existing cf_clearance cookie)
+            val loginPageResp = apiClient.service.getLoginPage()
+            val html = loginPageResp.body()?.string() ?: return false
+            val csrf = extractCsrfToken(html) ?: return false
+
+            val loginResp = apiClient.service.loginJson(
+                csrfToken = csrf,
+                request = LoginJsonRequest(UserCredentials(settings.email, settings.password))
+            )
+
+            if (!loginResp.isSuccessful) {
+                Log.w(TAG, "Re-login HTTP ${loginResp.code()}")
+                return false
+            }
+
+            val redirectPath = loginResp.body()?.redirectPath ?: return false
+            val scheduleId = Regex("/groups/(\\d+)").find(redirectPath)?.groupValues?.get(1) ?: ""
+            if (scheduleId.isEmpty()) return false
+
+            val sessionCookie = apiClient.cookieJar.getSessionCookie("ais.usvisa-info.com")
+            prefs.saveSessionData(scheduleId, sessionCookie, csrf)
+
+            Log.d(TAG, "Auto re-login success, scheduleId=$scheduleId")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Auto re-login failed", e)
+            false
+        }
+    }
+
     private fun apptReferer(scheduleId: String) =
         "https://ais.usvisa-info.com/en-ca/niv/schedule/$scheduleId/appointment"
 
@@ -196,6 +233,21 @@ class AppointmentRepository(private val context: Context) {
     // ─── Main entry point called by service / ViewModel ───────────────────────
 
     suspend fun checkAndBookSlots(): RepoResult<String> {
+        val result = doCheckAndBook()
+        // On session expiry, try silent re-login once then retry
+        if (result is RepoResult.Error && result.code in listOf(401, 403)) {
+            Log.d(TAG, "Session expired — attempting auto re-login")
+            return if (reLogin()) {
+                Log.d(TAG, "Re-login succeeded, retrying check")
+                doCheckAndBook()
+            } else {
+                RepoResult.Error("SESSION_EXPIRED", 401)
+            }
+        }
+        return result
+    }
+
+    private suspend fun doCheckAndBook(): RepoResult<String> {
         val settings = prefs.settingsFlow.first()
 
         if (!settings.isLoggedIn)

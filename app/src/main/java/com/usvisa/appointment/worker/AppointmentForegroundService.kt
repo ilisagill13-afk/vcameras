@@ -118,8 +118,13 @@ class AppointmentForegroundService : Service() {
                         }
                         is RepoResult.Error -> {
                             _checkCount.value++
-                            val msg = result.message
-                            log("✗ $msg")
+                            if (result.message == "SESSION_EXPIRED") {
+                                log("✗ Session expired — auto re-login failed. Manual login required.")
+                                NotificationHelper.notifyLoginRequired(this@AppointmentForegroundService)
+                                stopMonitoring()
+                                return@launch
+                            }
+                            log("✗ ${result.message}")
                         }
                     }
                 } catch (e: CancellationException) {

@@ -128,6 +128,28 @@ object NotificationHelper {
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_ERROR, notification)
     }
 
+    fun notifyLoginRequired(context: Context) {
+        val intent = Intent(context, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_SLOT_FOUND)
+            .setSmallIcon(R.drawable.ic_visa)
+            .setContentTitle("Re-Login Required")
+            .setContentText("Session expired and auto re-login failed. Tap to log in again.")
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText("Your visa monitor session expired and could not be renewed automatically (Cloudflare protection). Please open the app and log in again to resume monitoring.")
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+
+        NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_ERROR, notification)
+    }
+
     fun cancelMonitoringNotification(context: Context) {
         NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID_MONITORING)
     }
