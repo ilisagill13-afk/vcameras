@@ -11,7 +11,7 @@ import retrofit2.http.*
 interface VisaApiService {
 
     // Step 1: Load login page → extracts CSRF token + session cookie
-    @GET("users/sign_in")
+    @GET("niv/users/sign_in")
     suspend fun getLoginPage(): Response<ResponseBody>
 
     // Step 2: POST JSON credentials — website expects JSON, NOT form-encoded
@@ -19,7 +19,7 @@ interface VisaApiService {
         "Content-Type: application/json",
         "Accept: application/json"
     )
-    @POST("users/sign_in")
+    @POST("niv/users/sign_in")
     suspend fun loginJson(
         @Header("X-CSRF-Token") csrfToken: String,
         @Body request: LoginJsonRequest
@@ -30,7 +30,7 @@ interface VisaApiService {
     suspend fun getPage(@Url url: String): Response<ResponseBody>
 
     // Appointment page: contains facility IDs in select dropdown + fresh CSRF token
-    @GET("schedule/{scheduleId}/appointment")
+    @GET("niv/schedule/{scheduleId}/appointment")
     suspend fun getAppointmentPage(
         @Path("scheduleId") scheduleId: String
     ): Response<ResponseBody>
@@ -40,7 +40,7 @@ interface VisaApiService {
         "X-Requested-With: XMLHttpRequest",
         "Accept: application/json, text/javascript, */*; q=0.01"
     )
-    @GET("schedule/{scheduleId}/appointment/days/{facilityId}.json")
+    @GET("niv/schedule/{scheduleId}/appointment/days/{facilityId}.json")
     suspend fun getAvailableDays(
         @Path("scheduleId") scheduleId: String,
         @Path("facilityId") facilityId: String,
@@ -53,7 +53,7 @@ interface VisaApiService {
         "X-Requested-With: XMLHttpRequest",
         "Accept: application/json, text/javascript, */*; q=0.01"
     )
-    @GET("schedule/{scheduleId}/appointment/times/{facilityId}.json")
+    @GET("niv/schedule/{scheduleId}/appointment/times/{facilityId}.json")
     suspend fun getAvailableTimes(
         @Path("scheduleId") scheduleId: String,
         @Path("facilityId") facilityId: String,
@@ -64,7 +64,7 @@ interface VisaApiService {
 
     // Book the appointment (form-encoded PUT via _method override)
     @FormUrlEncoded
-    @POST("schedule/{scheduleId}/appointment")
+    @POST("niv/schedule/{scheduleId}/appointment")
     suspend fun bookAppointment(
         @Path("scheduleId") scheduleId: String,
         @Field("authenticity_token") authenticityToken: String,
@@ -75,6 +75,6 @@ interface VisaApiService {
         @Field("_method") method: String = "put"
     ): Response<ResponseBody>
 
-    @GET("users/sign_out")
+    @GET("niv/users/sign_out")
     suspend fun logout(): Response<ResponseBody>
 }

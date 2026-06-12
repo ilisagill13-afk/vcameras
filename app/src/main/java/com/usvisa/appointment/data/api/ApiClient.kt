@@ -123,7 +123,7 @@ class PersistentCookieJar(private val context: Context) : CookieJar {
 class ApiClient(private val context: Context) {
 
     companion object {
-        const val BASE_URL = "https://ais.usvisa-info.com/en-ca/niv/"
+        const val BASE_URL = "https://ais.usvisa-info.com/en-ca/"
         private const val TAG = "ApiClient"
     }
 
