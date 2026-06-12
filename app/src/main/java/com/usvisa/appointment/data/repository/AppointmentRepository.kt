@@ -165,8 +165,9 @@ class AppointmentRepository(private val context: Context) {
         if (days.isEmpty())
             return RepoResult.Error("No available slots in the selected date range")
 
+        val allDatesLine = "All available (${days.size}): ${days.joinToString(", ") { it.date }}"
         val earliest = days.first()
-        Log.d(TAG, "Earliest: ${earliest.date}")
+        Log.d(TAG, "Earliest: ${earliest.date}, total=${days.size}")
 
         val timesResult = getAvailableTimes(scheduleId, facilityId, earliest.date)
         if (timesResult is RepoResult.Error) return timesResult
@@ -203,7 +204,7 @@ class AppointmentRepository(private val context: Context) {
                 bookResp.isSuccessful || code == 302 -> {
                     val err = extractInlineError(body)
                     if (err != null) RepoResult.Error("Booking rejected: $err")
-                    else RepoResult.Success("${earliest.date} at $selectedTime")
+                    else RepoResult.Success("${earliest.date} at $selectedTime\n$allDatesLine")
                 }
                 code == 422 -> RepoResult.Error(
                     extractInlineError(body) ?: "Slot was taken — will retry"
@@ -273,11 +274,14 @@ class AppointmentRepository(private val context: Context) {
         } else {
             val daysResult = getAvailableDays(scheduleId, facilityId, startDate, endDate)
             when (daysResult) {
-                is RepoResult.Success ->
-                    if (daysResult.data.isEmpty()) RepoResult.Error("No slots in range")
+                is RepoResult.Success -> {
+                    val days = daysResult.data
+                    if (days.isEmpty()) RepoResult.Error("No slots in range")
                     else RepoResult.Success(
-                        "Found ${daysResult.data.size} slot(s). Earliest: ${daysResult.data.first().date}"
+                        "Found ${days.size} slot(s). Earliest: ${days.first().date}\n" +
+                        "All available (${days.size}): ${days.joinToString(", ") { it.date }}"
                     )
+                }
                 is RepoResult.Error -> daysResult
             }
         }

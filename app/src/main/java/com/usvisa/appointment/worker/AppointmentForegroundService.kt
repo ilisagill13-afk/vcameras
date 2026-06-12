@@ -90,14 +90,18 @@ class AppointmentForegroundService : Service() {
                     when (val result = repo.checkAndBookSlots()) {
                         is RepoResult.Success -> {
                             val data = result.data
+                            val lines = data.lines()
+                            val firstLine = lines.first()
                             _checkCount.value++
-                            val isBooked = data.contains(" at ") && !data.startsWith("Found")
+                            val isBooked = firstLine.contains(" at ") && !firstLine.startsWith("Found")
 
                             if (isBooked && settings.autoBook) {
-                                val parts = data.split(" at ")
-                                val date = parts[0]
-                                val time = parts.getOrElse(1) { "" }
-                                log("✓ BOOKED: $data")
+                                val firstLineParts = firstLine.split(" at ")
+                                val date = firstLineParts[0].trim()
+                                val time = firstLineParts.getOrElse(1) { "" }.trim()
+                                log("✓ BOOKED: $firstLine")
+                                // log all available dates that were found
+                                lines.drop(1).filter { it.isNotEmpty() }.forEach { log("  $it") }
                                 NotificationHelper.notifyBookingSuccess(
                                     this@AppointmentForegroundService,
                                     date, time, settings.facilityName
@@ -105,15 +109,17 @@ class AppointmentForegroundService : Service() {
                                 stopMonitoring()
                                 return@launch
                             } else {
-                                log("✓ Slot found: $data")
+                                log("✓ $firstLine")
+                                // log all available dates on separate lines
+                                lines.drop(1).filter { it.isNotEmpty() }.forEach { log("  $it") }
                                 if (settings.notifyOnFound) {
-                                    val earliest = data.substringAfter("Earliest: ")
+                                    val earliest = firstLine.substringAfter("Earliest: ").substringBefore("\n")
                                     NotificationHelper.notifySlotFound(
                                         this@AppointmentForegroundService,
                                         earliest, settings.facilityName
                                     )
                                 }
-                                updateNotification("Slot found: $data")
+                                updateNotification("Slots found: $firstLine")
                             }
                         }
                         is RepoResult.Error -> {
