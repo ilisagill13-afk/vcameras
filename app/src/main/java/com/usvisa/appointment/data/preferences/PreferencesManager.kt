@@ -31,6 +31,10 @@ class PreferencesManager(private val context: Context) {
         val KEY_MANUAL_SCHEDULE_ID = stringPreferencesKey("manual_schedule_id")
         val KEY_MANUAL_FACILITY_ID = stringPreferencesKey("manual_facility_id")
         val KEY_NEEDS_MANUAL_LOGIN = booleanPreferencesKey("needs_manual_login")
+        val KEY_PROXY_ENABLED = booleanPreferencesKey("proxy_enabled")
+        val KEY_PROXY_HOST    = stringPreferencesKey("proxy_host")
+        val KEY_PROXY_PORT    = intPreferencesKey("proxy_port")
+        val KEY_PROXY_TYPE    = stringPreferencesKey("proxy_type")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data
@@ -52,7 +56,11 @@ class PreferencesManager(private val context: Context) {
                 notifyOnFound = prefs[KEY_NOTIFY_ON_FOUND] ?: true,
                 manualScheduleId = prefs[KEY_MANUAL_SCHEDULE_ID] ?: "",
                 manualFacilityId = prefs[KEY_MANUAL_FACILITY_ID] ?: "",
-                needsManualLogin = prefs[KEY_NEEDS_MANUAL_LOGIN] ?: false
+                needsManualLogin = prefs[KEY_NEEDS_MANUAL_LOGIN] ?: false,
+                proxyEnabled = prefs[KEY_PROXY_ENABLED] ?: false,
+                proxyHost    = prefs[KEY_PROXY_HOST]    ?: "",
+                proxyPort    = prefs[KEY_PROXY_PORT]    ?: 8080,
+                proxyType    = prefs[KEY_PROXY_TYPE]    ?: "HTTP"
             )
         }
 
@@ -77,6 +85,17 @@ class PreferencesManager(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[KEY_NEEDS_MANUAL_LOGIN] = true
             prefs[KEY_IS_LOGGED_IN] = false
+        }
+    }
+
+    suspend fun saveProxySettings(
+        enabled: Boolean, host: String, port: Int, type: String
+    ) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_PROXY_ENABLED] = enabled
+            prefs[KEY_PROXY_HOST]    = host
+            prefs[KEY_PROXY_PORT]    = port
+            prefs[KEY_PROXY_TYPE]    = type
         }
     }
 

@@ -51,12 +51,12 @@ data class MonitoringStatus(
 data class AppSettings(
     val email: String = "",
     val password: String = "",
-    val scheduleId: String = "",          // auto-detected after login
-    val facilityId: String = "",          // user must set this (from website)
+    val scheduleId: String = "",
+    val facilityId: String = "",
     val facilityName: String = "",
     val startDate: String = "",
     val endDate: String = "",
-    val checkIntervalSeconds: Int = 30,    // user types exact seconds
+    val checkIntervalSeconds: Int = 30,
     val isLoggedIn: Boolean = false,
     val sessionCookie: String = "",
     val csrfToken: String = "",
@@ -64,7 +64,11 @@ data class AppSettings(
     val notifyOnFound: Boolean = true,
     val manualScheduleId: String = "",
     val manualFacilityId: String = "",
-    val needsManualLogin: Boolean = false
+    val needsManualLogin: Boolean = false,
+    val proxyEnabled: Boolean = false,
+    val proxyHost: String = "",
+    val proxyPort: Int = 8080,
+    val proxyType: String = "HTTP"   // "HTTP" or "SOCKS5"
 )
 
 data class FacilityOption(

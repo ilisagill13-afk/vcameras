@@ -6,7 +6,18 @@ import okhttp3.*
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.net.ProxySelector
+import java.net.SocketAddress
+import java.net.URI
+import java.io.IOException
 import java.util.concurrent.TimeUnit
+
+// Global proxy holder — updated when user saves proxy settings
+object ProxyConfig {
+    @Volatile var proxy: Proxy = Proxy.NO_PROXY
+}
 
 class PersistentCookieJar(private val context: Context) : CookieJar {
     private val prefs = context.getSharedPreferences("cookies", Context.MODE_PRIVATE)
@@ -70,6 +81,12 @@ class ApiClient(private val context: Context) {
     val cookieJar = PersistentCookieJar(context)
 
     val okHttpClient: OkHttpClient = OkHttpClient.Builder()
+        .proxySelector(object : ProxySelector() {
+            override fun select(uri: URI?): List<Proxy> = listOf(ProxyConfig.proxy)
+            override fun connectFailed(uri: URI?, sa: SocketAddress?, ioe: IOException?) {
+                Log.w(TAG, "Proxy connect failed: $uri $ioe")
+            }
+        })
         .cookieJar(cookieJar)
         .addInterceptor { chain ->
             val original = chain.request()

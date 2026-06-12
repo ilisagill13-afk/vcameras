@@ -397,6 +397,107 @@ fun SettingsScreen(
                 }
             )
 
+            HorizontalDivider()
+
+            // ── Proxy / IP Hide ───────────────────────────────────────────────
+            SectionHeader(Icons.Default.VpnLock, "Proxy (Hide IP)")
+
+            Text(
+                "Route all monitoring traffic through an HTTP or SOCKS5 proxy to hide your IP from the visa website.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.VpnLock, null, modifier = Modifier.size(24.dp),
+                        tint = if (uiState.proxyEnabled) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Enable Proxy", fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                        Text(
+                            if (uiState.proxyEnabled && uiState.proxyHost.isNotEmpty())
+                                "${uiState.proxyType}  ${uiState.proxyHost}:${uiState.proxyPortText}"
+                            else "Disabled — real IP used",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    Switch(checked = uiState.proxyEnabled, onCheckedChange = viewModel::onProxyEnabledChange)
+                }
+            }
+
+            if (uiState.proxyEnabled) {
+                // Proxy type selector
+                var typeExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = typeExpanded,
+                    onExpandedChange = { typeExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = uiState.proxyType,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Proxy Type") },
+                        leadingIcon = { Icon(Icons.Default.SwapHoriz, contentDescription = null) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        singleLine = true
+                    )
+                    ExposedDropdownMenu(
+                        expanded = typeExpanded,
+                        onDismissRequest = { typeExpanded = false }
+                    ) {
+                        listOf("HTTP", "SOCKS5").forEach { type ->
+                            DropdownMenuItem(
+                                text = { Text(type) },
+                                onClick = { viewModel.onProxyTypeChange(type); typeExpanded = false },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = uiState.proxyHost,
+                        onValueChange = viewModel::onProxyHostChange,
+                        label = { Text("Proxy Host") },
+                        placeholder = { Text("e.g. 192.168.1.1") },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = uiState.proxyPortText,
+                        onValueChange = viewModel::onProxyPortChange,
+                        label = { Text("Port") },
+                        placeholder = { Text("8080") },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Done
+                        ),
+                        modifier = Modifier.width(100.dp),
+                        singleLine = true
+                    )
+                }
+
+                if (uiState.proxyHost.isNotEmpty()) {
+                    InfoCard("Proxy active: ${uiState.proxyType} ${uiState.proxyHost}:${uiState.proxyPortText}", isSuccess = true)
+                }
+            }
+
             Spacer(modifier = Modifier.height(72.dp))
         }
     }

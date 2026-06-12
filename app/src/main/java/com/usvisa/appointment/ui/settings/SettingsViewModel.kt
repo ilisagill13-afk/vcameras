@@ -3,12 +3,15 @@ package com.usvisa.appointment.ui.settings
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.usvisa.appointment.data.api.ProxyConfig
 import com.usvisa.appointment.data.model.AppSettings
 import com.usvisa.appointment.data.preferences.PreferencesManager
 import com.usvisa.appointment.data.repository.AppointmentRepository
 import com.usvisa.appointment.data.repository.FacilityFromPage
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.net.InetSocketAddress
+import java.net.Proxy
 
 data class SettingsUiState(
     val settings: AppSettings = AppSettings(),
@@ -25,7 +28,11 @@ data class SettingsUiState(
     val manualScheduleId: String = "",
     val manualFacilityId: String = "",
     val detectedFacilities: List<FacilityFromPage> = emptyList(),
-    val isLoadingFacilities: Boolean = false
+    val isLoadingFacilities: Boolean = false,
+    val proxyEnabled: Boolean = false,
+    val proxyHost: String = "",
+    val proxyPortText: String = "8080",
+    val proxyType: String = "HTTP"
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -53,8 +60,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     notifyOnFound = s.notifyOnFound,
                     manualScheduleId = s.manualScheduleId,
                     manualFacilityId = s.manualFacilityId,
-                    isLoadingFacilities = scheduleId.isNotEmpty()
+                    isLoadingFacilities = scheduleId.isNotEmpty(),
+                    proxyEnabled = s.proxyEnabled,
+                    proxyHost = s.proxyHost,
+                    proxyPortText = s.proxyPort.toString(),
+                    proxyType = s.proxyType
                 )
+                applyProxy(s.proxyEnabled, s.proxyHost, s.proxyPort, s.proxyType)
                 if (scheduleId.isNotEmpty()) fetchFacilities(scheduleId)
             }
         }
@@ -73,8 +85,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun onEmailChange(v: String)    = _uiState.update { it.copy(email = v, isSaved = false) }
-    fun onPasswordChange(v: String) = _uiState.update { it.copy(password = v, isSaved = false) }
+    fun onEmailChange(v: String)        = _uiState.update { it.copy(email = v, isSaved = false) }
+    fun onPasswordChange(v: String)     = _uiState.update { it.copy(password = v, isSaved = false) }
+    fun onProxyEnabledChange(v: Boolean)= _uiState.update { it.copy(proxyEnabled = v, isSaved = false) }
+    fun onProxyHostChange(v: String)    = _uiState.update { it.copy(proxyHost = v, isSaved = false) }
+    fun onProxyPortChange(v: String)    = _uiState.update { it.copy(proxyPortText = v, isSaved = false) }
+    fun onProxyTypeChange(v: String)    = _uiState.update { it.copy(proxyType = v, isSaved = false) }
 
     fun onFacilitySelected(facility: FacilityFromPage) =
         _uiState.update { it.copy(facilityId = facility.id, facilityName = facility.name, isSaved = false) }
@@ -87,13 +103,25 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun onManualScheduleIdChange(id: String)  = _uiState.update { it.copy(manualScheduleId = id, isSaved = false) }
     fun onManualFacilityIdChange(id: String)  = _uiState.update { it.copy(manualFacilityId = id, isSaved = false) }
 
+    private fun applyProxy(enabled: Boolean, host: String, port: Int, type: String) {
+        ProxyConfig.proxy = if (enabled && host.isNotBlank()) {
+            val proxyType = if (type == "SOCKS5") Proxy.Type.SOCKS else Proxy.Type.HTTP
+            Proxy(proxyType, InetSocketAddress(host, port))
+        } else {
+            Proxy.NO_PROXY
+        }
+    }
+
     fun saveSettings() {
         val s = _uiState.value
         val seconds = s.intervalSecondsText.trim().toIntOrNull()?.coerceAtLeast(5) ?: 30
+        val proxyPort = s.proxyPortText.trim().toIntOrNull()?.coerceIn(1, 65535) ?: 8080
         viewModelScope.launch {
             if (s.email.isNotBlank() && s.password.isNotBlank()) {
                 prefsManager.saveLoginInfo(s.email, s.password)
             }
+            prefsManager.saveProxySettings(s.proxyEnabled, s.proxyHost, proxyPort, s.proxyType)
+            applyProxy(s.proxyEnabled, s.proxyHost, proxyPort, s.proxyType)
             prefsManager.saveAppointmentSettings(
                 facilityId = s.facilityId,
                 facilityName = s.facilityName,
