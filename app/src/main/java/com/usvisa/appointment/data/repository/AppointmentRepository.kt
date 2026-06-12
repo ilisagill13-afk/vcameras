@@ -100,11 +100,10 @@ class AppointmentRepository(private val context: Context) {
     private fun apptReferer(scheduleId: String) =
         "https://ais.usvisa-info.com/en-ca/niv/schedule/$scheduleId/appointment"
 
+    // Returns ALL available days from the API, sorted by date (no range filter — callers filter)
     suspend fun getAvailableDays(
         scheduleId: String,
-        facilityId: String,
-        startDate: LocalDate,
-        endDate: LocalDate
+        facilityId: String
     ): RepoResult<List<AvailableDay>> {
         return try {
             val resp = apiClient.service.getAvailableDays(scheduleId, facilityId, apptReferer(scheduleId))
@@ -117,21 +116,45 @@ class AppointmentRepository(private val context: Context) {
             if (!resp.isSuccessful)
                 return RepoResult.Error("HTTP ${resp.code()} fetching available days")
 
-            val all = resp.body() ?: emptyList()
-            val filtered = all.filter { day ->
-                runCatching {
-                    val d = LocalDate.parse(day.date, DATE_FORMAT)
-                    !d.isBefore(startDate) && !d.isAfter(endDate)
-                }.getOrDefault(false)
-            }.sortedBy { it.date }
-
-            Log.d(TAG, "Available: total=${all.size}, in range=${filtered.size}")
-            RepoResult.Success(filtered)
+            val all = (resp.body() ?: emptyList()).sortedBy { it.date }
+            Log.d(TAG, "Available total=${all.size}")
+            RepoResult.Success(all)
 
         } catch (e: Exception) {
             Log.e(TAG, "Days error", e)
             RepoResult.Error("Network error: ${e.message}")
         }
+    }
+
+    private fun splitByRange(
+        all: List<AvailableDay>,
+        startDate: LocalDate,
+        endDate: LocalDate
+    ): Triple<List<AvailableDay>, List<AvailableDay>, List<AvailableDay>> {
+        val before = mutableListOf<AvailableDay>()
+        val inRange = mutableListOf<AvailableDay>()
+        val beyond = mutableListOf<AvailableDay>()
+        all.forEach { day ->
+            val d = runCatching { LocalDate.parse(day.date, DATE_FORMAT) }.getOrNull() ?: return@forEach
+            when {
+                d.isBefore(startDate) -> before.add(day)
+                d.isAfter(endDate)    -> beyond.add(day)
+                else                  -> inRange.add(day)
+            }
+        }
+        return Triple(before, inRange, beyond)
+    }
+
+    private fun buildDatesLog(
+        inRange: List<AvailableDay>,
+        beyond: List<AvailableDay>
+    ): String {
+        val sb = StringBuilder()
+        sb.append("In range (${inRange.size}): ")
+        sb.append(if (inRange.isEmpty()) "none" else inRange.joinToString(", ") { it.date })
+        sb.append("\nBeyond range (+${beyond.size}): ")
+        sb.append(if (beyond.isEmpty()) "none" else beyond.joinToString(", ") { it.date })
+        return sb.toString()
     }
 
     suspend fun getAvailableTimes(
@@ -158,16 +181,18 @@ class AppointmentRepository(private val context: Context) {
         endDate: LocalDate
     ): RepoResult<String> {
 
-        val daysResult = getAvailableDays(scheduleId, facilityId, startDate, endDate)
+        val daysResult = getAvailableDays(scheduleId, facilityId)
         if (daysResult is RepoResult.Error) return daysResult
 
-        val days = (daysResult as RepoResult.Success).data
-        if (days.isEmpty())
-            return RepoResult.Error("No available slots in the selected date range")
+        val (_, inRange, beyond) = splitByRange((daysResult as RepoResult.Success).data, startDate, endDate)
+        if (inRange.isEmpty())
+            return RepoResult.Error(
+                "No slots in your range.\n" + buildDatesLog(inRange, beyond)
+            )
 
-        val allDatesLine = "All available (${days.size}): ${days.joinToString(", ") { it.date }}"
-        val earliest = days.first()
-        Log.d(TAG, "Earliest: ${earliest.date}, total=${days.size}")
+        val datesLog = buildDatesLog(inRange, beyond)
+        val earliest = inRange.first()
+        Log.d(TAG, "Earliest: ${earliest.date}, inRange=${inRange.size}, beyond=${beyond.size}")
 
         val timesResult = getAvailableTimes(scheduleId, facilityId, earliest.date)
         if (timesResult is RepoResult.Error) return timesResult
@@ -204,7 +229,7 @@ class AppointmentRepository(private val context: Context) {
                 bookResp.isSuccessful || code == 302 -> {
                     val err = extractInlineError(body)
                     if (err != null) RepoResult.Error("Booking rejected: $err")
-                    else RepoResult.Success("${earliest.date} at $selectedTime\n$allDatesLine")
+                    else RepoResult.Success("${earliest.date} at $selectedTime\n$datesLog")
                 }
                 code == 422 -> RepoResult.Error(
                     extractInlineError(body) ?: "Slot was taken — will retry"
@@ -272,15 +297,17 @@ class AppointmentRepository(private val context: Context) {
         return if (settings.autoBook) {
             bookEarliestAvailableSlot(scheduleId, facilityId, startDate, endDate)
         } else {
-            val daysResult = getAvailableDays(scheduleId, facilityId, startDate, endDate)
+            val daysResult = getAvailableDays(scheduleId, facilityId)
             when (daysResult) {
                 is RepoResult.Success -> {
-                    val days = daysResult.data
-                    if (days.isEmpty()) RepoResult.Error("No slots in range")
-                    else RepoResult.Success(
-                        "Found ${days.size} slot(s). Earliest: ${days.first().date}\n" +
-                        "All available (${days.size}): ${days.joinToString(", ") { it.date }}"
-                    )
+                    val (_, inRange, beyond) = splitByRange(daysResult.data, startDate, endDate)
+                    val datesLog = buildDatesLog(inRange, beyond)
+                    if (inRange.isEmpty())
+                        RepoResult.Error("No slots in your range.\n$datesLog")
+                    else
+                        RepoResult.Success(
+                            "Found ${inRange.size} slot(s). Earliest: ${inRange.first().date}\n$datesLog"
+                        )
                 }
                 is RepoResult.Error -> daysResult
             }
