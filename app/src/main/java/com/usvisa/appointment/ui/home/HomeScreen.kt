@@ -1,26 +1,29 @@
 package com.usvisa.appointment.ui.home
 
+import android.annotation.SuppressLint
+import android.webkit.CookieManager
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+private const val BASE = "https://ais.usvisa-info.com/en-ca/niv"
+
+@SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun HomeScreen(
     onNavigateToSettings: () -> Unit,
@@ -31,89 +34,159 @@ fun HomeScreen(
     val settings = uiState.settings
     var showLogoutDialog by remember { mutableStateOf(false) }
 
+    val scheduleId = settings.manualScheduleId.ifEmpty { settings.scheduleId }
+    val startUrl = if (scheduleId.isNotEmpty())
+        "$BASE/schedule/$scheduleId/appointment"
+    else
+        "$BASE/users/sign_in"
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Sardarji Visa Scheduler", fontWeight = FontWeight.Bold)
-                        Text(
-                            settings.email,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                    IconButton(onClick = { showLogoutDialog = true }) {
-                        Icon(Icons.Default.Logout, contentDescription = "Logout")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        LazyColumn(
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        // ── Full-screen WebView ────────────────────────────────────────────
+        AndroidView(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(vertical = 16.dp)
+                .padding(bottom = 64.dp),
+            factory = { ctx ->
+                WebView(ctx).apply {
+                    with(settings) {
+                        javaScriptEnabled = true
+                        domStorageEnabled = true
+                        loadWithOverviewMode = true
+                        useWideViewPort = true
+                        setSupportZoom(true)
+                        builtInZoomControls = true
+                        displayZoomControls = false
+                        userAgentString =
+                            "Mozilla/5.0 (Linux; Android 14; Pixel 8) " +
+                            "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                            "Chrome/124.0.6367.82 Mobile Safari/537.36"
+                    }
+                    CookieManager.getInstance().setAcceptCookie(true)
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+
+                    webViewClient = object : WebViewClient() {
+                        // Allow all navigation within the site
+                        override fun shouldOverrideUrlLoading(
+                            view: WebView, request: WebResourceRequest
+                        ) = false
+                    }
+
+                    loadUrl(startUrl)
+                }
+            }
+        )
+
+        // ── Bottom control bar ─────────────────────────────────────────────
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 4.dp,
+            shadowElevation = 8.dp
         ) {
-            item {
-                MonitoringStatusCard(
-                    isRunning = uiState.isServiceRunning,
-                    isChecking = uiState.isCheckingNow,
-                    needsLogin = uiState.needsLogin,
-                    facilityName = settings.facilityName.ifEmpty { settings.manualFacilityId.ifEmpty { "—" } },
-                    startDate = settings.startDate,
-                    endDate = settings.endDate,
-                    intervalSeconds = settings.checkIntervalSeconds,
-                    totalChecks = uiState.totalChecks,
-                    isConfigured = settings.startDate.isNotEmpty() && settings.endDate.isNotEmpty(),
-                    isLoggedIn = settings.isLoggedIn,
-                    onStart = { viewModel.startMonitoring() },
-                    onStop = { viewModel.stopMonitoring() },
-                    onCheckNow = { viewModel.checkNow() },
-                    onLoginAgain = { viewModel.logout(); onLogout() }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Status dot + label
+                val statusColor = when {
+                    uiState.needsLogin      -> Color(0xFFFFB300)
+                    uiState.isServiceRunning -> Color(0xFF66BB6A)
+                    else                    -> Color(0xFF546E7A)
+                }
+                Box(
+                    modifier = Modifier
+                        .size(9.dp)
+                        .background(statusColor, CircleShape)
                 )
-            }
-
-            // Config summary card when logged in
-            if (settings.scheduleId.isNotEmpty() || settings.manualScheduleId.isNotEmpty()) {
-                item { ConfigSummaryCard(settings) }
-            }
-
-            item {
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    "Activity Log",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    modifier = Modifier.padding(vertical = 4.dp)
+                    text = when {
+                        uiState.needsLogin       -> "Login needed"
+                        uiState.isServiceRunning -> "Monitoring"
+                        else                     -> "Stopped"
+                    },
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = statusColor
                 )
-            }
+                if (uiState.totalChecks > 0) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        "${uiState.totalChecks}",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                    )
+                }
 
-            if (uiState.logMessages.isEmpty()) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Text(
-                            "No activity yet. Press 'Check Now' or Start Monitoring.",
-                            modifier = Modifier.padding(16.dp),
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            fontSize = 13.sp
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Check Now
+                IconButton(
+                    onClick = { viewModel.checkNow() },
+                    enabled = !uiState.isCheckingNow && !uiState.needsLogin
+                ) {
+                    if (uiState.isCheckingNow) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = "Check Now",
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
-            } else {
-                items(uiState.logMessages) { log -> LogEntry(log) }
+
+                // Start / Stop monitoring
+                if (!uiState.isServiceRunning) {
+                    IconButton(
+                        onClick = { viewModel.startMonitoring() },
+                        enabled = !uiState.needsLogin
+                    ) {
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = "Start Monitoring",
+                            tint = if (uiState.needsLogin) Color.Gray else Color(0xFF66BB6A),
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                } else {
+                    IconButton(onClick = { viewModel.stopMonitoring() }) {
+                        Icon(
+                            Icons.Default.Stop,
+                            contentDescription = "Stop Monitoring",
+                            tint = Color(0xFFEF5350),
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+
+                // Settings
+                IconButton(onClick = onNavigateToSettings) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                // Logout
+                IconButton(onClick = { showLogoutDialog = true }) {
+                    Icon(
+                        Icons.Default.Logout,
+                        contentDescription = "Logout",
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
     }
@@ -135,207 +208,4 @@ fun HomeScreen(
             }
         )
     }
-}
-
-@Composable
-private fun MonitoringStatusCard(
-    isRunning: Boolean,
-    isChecking: Boolean,
-    needsLogin: Boolean,
-    facilityName: String,
-    startDate: String,
-    endDate: String,
-    intervalSeconds: Int,
-    totalChecks: Int,
-    isConfigured: Boolean,
-    isLoggedIn: Boolean,
-    onStart: () -> Unit,
-    onStop: () -> Unit,
-    onCheckNow: () -> Unit,
-    onLoginAgain: () -> Unit
-) {
-    val statusColor = when {
-        needsLogin -> Color(0xFFFFB300)
-        isChecking -> Color(0xFFFFA726)
-        isRunning  -> Color(0xFF66BB6A)
-        else       -> Color(0xFF546E7A)
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = when {
-                needsLogin -> Color(0xFF2B1F00)
-                isRunning  -> Color(0xFF0D2137)
-                else       -> MaterialTheme.colorScheme.surface
-            }
-        ),
-        border = when {
-            needsLogin -> androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB300))
-            isRunning  -> androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1565C0))
-            else       -> null
-        }
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            // Status row
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(statusColor))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = when {
-                        needsLogin -> "Login Required"
-                        isChecking -> "Checking…"
-                        isRunning  -> "Monitoring Active"
-                        else       -> "Stopped"
-                    },
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 18.sp,
-                    color = statusColor
-                )
-                if (totalChecks > 0) {
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        "$totalChecks checks",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
-                }
-            }
-
-            if (needsLogin) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Session expired. Auto re-login failed (Cloudflare). Log in again to resume monitoring automatically.",
-                    fontSize = 12.sp,
-                    color = Color(0xFFFFB300).copy(alpha = 0.85f)
-                )
-            } else if (isRunning && startDate.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Dates: $startDate → $endDate",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                Text(
-                    "Every ${intervalSeconds}s • $facilityName",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                )
-            } else if (!isConfigured && isLoggedIn) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Warning, null, tint = Color(0xFFFFA726), modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Configure Settings before starting", fontSize = 13.sp, color = Color(0xFFFFA726))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (needsLogin) {
-                Button(
-                    onClick = onLoginAgain,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB300))
-                ) {
-                    Icon(Icons.Default.Login, null, modifier = Modifier.size(18.dp), tint = Color.Black)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Login Again", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    if (!isRunning) {
-                        Button(
-                            onClick = onStart,
-                            modifier = Modifier.weight(1f),
-                            enabled = isConfigured && isLoggedIn && !isChecking,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
-                        ) {
-                            Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Start")
-                        }
-                    } else {
-                        OutlinedButton(
-                            onClick = onStop,
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF5350))
-                        ) {
-                            Icon(Icons.Default.Stop, null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Stop")
-                        }
-                    }
-
-                    OutlinedButton(
-                        onClick = onCheckNow,
-                        modifier = Modifier.weight(1f),
-                        enabled = isConfigured && isLoggedIn && !isChecking
-                    ) {
-                        if (isChecking) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        } else {
-                            Icon(Icons.Default.Search, null, modifier = Modifier.size(18.dp))
-                        }
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (isChecking) "Checking" else "Check Now")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ConfigSummaryCard(settings: com.usvisa.appointment.data.model.AppSettings) {
-    val effectiveScheduleId = settings.manualScheduleId.ifEmpty { settings.scheduleId }
-    val effectiveFacilityId = settings.manualFacilityId.ifEmpty { settings.facilityId }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Configuration", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            if (effectiveScheduleId.isNotEmpty())
-                ConfigRow(Icons.Default.Tag, "Schedule ID", effectiveScheduleId)
-            if (effectiveFacilityId.isNotEmpty())
-                ConfigRow(Icons.Default.Business, "Facility ID", "$effectiveFacilityId — ${settings.facilityName}")
-            if (settings.startDate.isNotEmpty())
-                ConfigRow(Icons.Default.DateRange, "Date Range", "${settings.startDate} → ${settings.endDate}")
-            ConfigRow(Icons.Default.Timer, "Interval", "${settings.checkIntervalSeconds}s")
-            ConfigRow(Icons.Default.BookmarkAdd, "Auto-Book",
-                if (settings.autoBook) "Enabled" else "Notify only")
-        }
-    }
-}
-
-@Composable
-private fun ConfigRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(value, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-    }
-}
-
-@Composable
-private fun LogEntry(log: String) {
-    val color = when {
-        log.contains("BOOKED") || log.contains("✓") -> Color(0xFF4CAF50)
-        log.contains("✗") || log.contains("ERROR")  -> Color(0xFFEF5350)
-        log.contains("Started")                      -> Color(0xFF42A5F5)
-        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-    }
-    Text(
-        text = log,
-        fontSize = 12.sp,
-        fontFamily = FontFamily.Monospace,
-        color = color,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)
-    )
 }
