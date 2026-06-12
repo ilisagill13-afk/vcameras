@@ -216,14 +216,15 @@ private fun handleExtractResult(
 
         // Flush ensures all cookies written by Cloudflare JS are committed before reading
         CookieManager.getInstance().flush()
-        val cookies = CookieManager.getInstance().getCookie("https://$AIS_HOST") ?: ""
+        // Use the niv path so path-scoped cookies like _yatri_session are included
+        val cookies = CookieManager.getInstance().getCookie("https://$AIS_HOST/en-ca/niv/") ?: ""
         Log.d(TAG, "scheduleId=$scheduleId csrf=${csrf.take(15)}… cookies=${cookies.take(40)}…")
 
         onSuccess(scheduleId, csrf, cookies)
     } catch (e: Exception) {
         Log.e(TAG, "Extract error", e)
         CookieManager.getInstance().flush()
-        val cookies = CookieManager.getInstance().getCookie("https://$AIS_HOST") ?: ""
+        val cookies = CookieManager.getInstance().getCookie("https://$AIS_HOST/en-ca/niv/") ?: ""
         onSuccess("", "", cookies)
     }
 }

@@ -126,19 +126,32 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun importWebViewCookies(cookieHeader: String) {
-        if (cookieHeader.isBlank()) return
         val host = "ais.usvisa-info.com"
         val httpUrl = "https://$host/".toHttpUrl()
-        val cookies = cookieHeader.split(";").mapNotNull { part ->
-            val idx = part.indexOf('=')
-            if (idx > 0) {
-                Cookie.Builder()
-                    .name(part.substring(0, idx).trim())
-                    .value(part.substring(idx + 1).trim())
-                    .domain(host)
-                    .path("/")
-                    .build()
-            } else null
+
+        // This runs on the main thread — safe to call CookieManager directly.
+        // Must use the niv path so path-scoped cookies like _yatri_session are returned.
+        val webViewStr = runCatching {
+            CookieManager.getInstance().getCookie("https://$host/en-ca/niv/")
+        }.getOrNull().orEmpty()
+
+        // Merge both sources; webViewStr (freshest) wins on name collision
+        val merged = linkedMapOf<String, String>()
+        listOf(cookieHeader, webViewStr).forEach { src ->
+            src.split(";").forEach { part ->
+                val idx = part.indexOf('=')
+                if (idx > 0) {
+                    val name = part.substring(0, idx).trim()
+                    if (name.isNotEmpty()) merged[name] = part.substring(idx + 1).trim()
+                }
+            }
+        }
+        if (merged.isEmpty()) return
+
+        val cookies = merged.mapNotNull { (name, value) ->
+            runCatching {
+                Cookie.Builder().name(name).value(value).domain(host).path("/").build()
+            }.getOrNull()
         }
         if (cookies.isNotEmpty()) {
             repository.apiClient.cookieJar.saveFromResponse(httpUrl, cookies)
