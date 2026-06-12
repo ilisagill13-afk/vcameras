@@ -78,7 +78,7 @@ fun LoginScreen(
                 tint = Color(0xFF4FC3F7)
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Text("US Visa Appointment", fontSize = 24.sp, fontWeight = FontWeight.Bold,
+            Text("Sardarji Visa Scheduler", fontSize = 24.sp, fontWeight = FontWeight.Bold,
                 color = Color.White, textAlign = TextAlign.Center)
             Text("Auto-Booking System", fontSize = 16.sp, color = Color(0xFF90CAF9),
                 textAlign = TextAlign.Center)
