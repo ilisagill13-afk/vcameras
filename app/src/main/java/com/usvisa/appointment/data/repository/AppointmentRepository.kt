@@ -139,9 +139,8 @@ class AppointmentRepository(private val context: Context) {
             val resp = apiClient.service.getAvailableDays(scheduleId, facilityId, apptReferer(scheduleId))
 
             when (resp.code()) {
-                401, 403 -> return RepoResult.Error(
-                    "Session expired — open app and log in again", resp.code()
-                )
+                302 -> return RepoResult.Error("Session expired (redirect to login)", 302)
+                401, 403 -> return RepoResult.Error("Session expired (HTTP ${resp.code()})", resp.code())
             }
             if (!resp.isSuccessful)
                 return RepoResult.Error("HTTP ${resp.code()} fetching available days")
@@ -199,6 +198,10 @@ class AppointmentRepository(private val context: Context) {
     ): RepoResult<AvailableTimes> {
         return try {
             val resp = apiClient.service.getAvailableTimes(scheduleId, facilityId, apptReferer(scheduleId), date)
+            when (resp.code()) {
+                302 -> return RepoResult.Error("Session expired (redirect to login)", 302)
+                401, 403 -> return RepoResult.Error("Session expired (HTTP ${resp.code()})", resp.code())
+            }
             if (!resp.isSuccessful)
                 return RepoResult.Error("HTTP ${resp.code()} fetching times for $date")
             RepoResult.Success(resp.body() ?: AvailableTimes(emptyList(), emptyList()))
@@ -319,7 +322,7 @@ class AppointmentRepository(private val context: Context) {
     suspend fun checkAndBookSlots(): RepoResult<String> {
         val result = doCheckAndBook()
         // On session expiry, try silent re-login once then retry
-        if (result is RepoResult.Error && result.code in listOf(401, 403)) {
+        if (result is RepoResult.Error && result.code in listOf(302, 401, 403)) {
             Log.d(TAG, "Session expired — attempting auto re-login")
             val settings = prefs.settingsFlow.first()
             val reLoginError = when {

@@ -145,8 +145,9 @@ class ApiClient(private val context: Context) {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
-        .followRedirects(true)
-        .followSslRedirects(true)
+        .followRedirects(false)      // Don't follow 302s — a redirect means session expired,
+        .followSslRedirects(false)   // and following it would overwrite valid cookies with a
+                                     // guest session from the login page Set-Cookie header.
         .build()
 
     val service: VisaApiService = Retrofit.Builder()
