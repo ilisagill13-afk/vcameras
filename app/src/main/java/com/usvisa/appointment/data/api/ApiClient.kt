@@ -23,6 +23,10 @@ class PersistentCookieJar(private val context: Context) : CookieJar {
     private val prefs = context.getSharedPreferences("cookies", Context.MODE_PRIVATE)
     private val cookies = mutableMapOf<String, MutableList<Cookie>>()
 
+    // Set by LoginViewModel after WebView login and by reLogin() after API re-auth.
+    // Takes final priority so no intermediate saveFromResponse call can overwrite it.
+    @Volatile var sessionCookieOverride: String = ""
+
     init { loadFromPrefs() }
 
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
@@ -65,6 +69,21 @@ class PersistentCookieJar(private val context: Context) : CookieJar {
                 }
             }
         }
+
+        // sessionCookieOverride is the authoritative _yatri_session — set by LoginViewModel
+        // after WebView login and by reLogin() so no intermediate saveFromResponse call wins.
+        if (sessionCookieOverride.isNotEmpty()) {
+            stored.removeAll { it.name == "_yatri_session" }
+            runCatching {
+                stored.add(
+                    Cookie.Builder()
+                        .name("_yatri_session").value(sessionCookieOverride)
+                        .domain(url.host).path("/")
+                        .build()
+                )
+            }
+        }
+
         return stored
     }
 

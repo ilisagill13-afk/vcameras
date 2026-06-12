@@ -110,6 +110,11 @@ class AppointmentRepository(private val context: Context) {
             val sessionCookie = apiClient.cookieJar.getSessionCookie("ais.usvisa-info.com")
             prefs.saveSessionData(scheduleId, sessionCookie, csrf)
 
+            // Pin the new session so loadForRequest always uses it
+            if (sessionCookie.isNotEmpty()) {
+                apiClient.cookieJar.sessionCookieOverride = sessionCookie
+            }
+
             // Sync new _yatri_session back to WebView CookieManager so both sources stay current
             if (sessionCookie.isNotEmpty()) {
                 runCatching {

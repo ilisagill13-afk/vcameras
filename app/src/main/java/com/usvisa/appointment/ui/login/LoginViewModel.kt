@@ -156,6 +156,13 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         if (cookies.isNotEmpty()) {
             repository.apiClient.cookieJar.saveFromResponse(httpUrl, cookies)
         }
+
+        // Pin the session so no subsequent saveFromResponse call (e.g. from a 302 redirect
+        // response during tryDetectFacilities) can overwrite it in loadForRequest.
+        val session = merged["_yatri_session"].orEmpty()
+        if (session.isNotEmpty()) {
+            repository.apiClient.cookieJar.sessionCookieOverride = session
+        }
     }
 
     private fun extractSessionCookie(cookieHeader: String): String {
