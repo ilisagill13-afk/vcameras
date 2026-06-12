@@ -129,9 +129,13 @@ class AppointmentForegroundService : Service() {
                         }
                         is RepoResult.Error -> {
                             _checkCount.value++
-                            if (result.message == "SESSION_EXPIRED") {
+                            if (result.message.startsWith("SESSION_EXPIRED")) {
                                 prefs.setNeedsManualLogin()
-                                log("✗ Session expired — auto re-login failed. Open app to log in.")
+                                val reason = if (result.message == "SESSION_EXPIRED:no_password")
+                                    "✗ Session expired — password not saved in Settings. Open Settings to enter password."
+                                else
+                                    "✗ Session expired — auto re-login failed (Cloudflare). Open app to log in."
+                                log(reason)
                                 NotificationHelper.notifyLoginRequired(this@AppointmentForegroundService)
                                 enterWaitForLoginState(prefs)
                                 return@launch

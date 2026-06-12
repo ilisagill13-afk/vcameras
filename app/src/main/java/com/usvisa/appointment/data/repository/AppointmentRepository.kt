@@ -65,12 +65,23 @@ class AppointmentRepository(private val context: Context) {
     suspend fun reLogin(): Boolean {
         return try {
             val settings = prefs.settingsFlow.first()
-            if (settings.email.isEmpty() || settings.password.isEmpty()) return false
+            if (settings.email.isEmpty()) {
+                Log.w(TAG, "Re-login skipped: email not saved")
+                return false
+            }
+            if (settings.password.isEmpty()) {
+                Log.w(TAG, "Re-login skipped: password not saved — update in Settings")
+                return false
+            }
 
             // GET login page → fresh CSRF token (uses existing cf_clearance cookie)
             val loginPageResp = apiClient.service.getLoginPage()
-            val html = loginPageResp.body()?.string() ?: return false
-            val csrf = extractCsrfToken(html) ?: return false
+            val html = loginPageResp.body()?.string() ?: run {
+                Log.w(TAG, "Re-login: login page returned empty body"); return false
+            }
+            val csrf = extractCsrfToken(html) ?: run {
+                Log.w(TAG, "Re-login: no CSRF in login page — Cloudflare challenge active"); return false
+            }
 
             val loginResp = apiClient.service.loginJson(
                 csrfToken = csrf,
@@ -82,9 +93,19 @@ class AppointmentRepository(private val context: Context) {
                 return false
             }
 
-            val redirectPath = loginResp.body()?.redirectPath ?: return false
+            val body = loginResp.body()
+            if (body?.error != null) {
+                Log.w(TAG, "Re-login rejected: ${body.error}")
+                return false
+            }
+
+            val redirectPath = body?.redirectPath ?: run {
+                Log.w(TAG, "Re-login: no redirect path in response"); return false
+            }
             val scheduleId = Regex("/groups/(\\d+)").find(redirectPath)?.groupValues?.get(1) ?: ""
-            if (scheduleId.isEmpty()) return false
+            if (scheduleId.isEmpty()) {
+                Log.w(TAG, "Re-login: could not extract schedule ID from $redirectPath"); return false
+            }
 
             val sessionCookie = apiClient.cookieJar.getSessionCookie("ais.usvisa-info.com")
             prefs.saveSessionData(scheduleId, sessionCookie, csrf)
@@ -92,7 +113,7 @@ class AppointmentRepository(private val context: Context) {
             Log.d(TAG, "Auto re-login success, scheduleId=$scheduleId")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Auto re-login failed", e)
+            Log.e(TAG, "Auto re-login exception", e)
             false
         }
     }
@@ -271,11 +292,16 @@ class AppointmentRepository(private val context: Context) {
         // On session expiry, try silent re-login once then retry
         if (result is RepoResult.Error && result.code in listOf(401, 403)) {
             Log.d(TAG, "Session expired — attempting auto re-login")
+            val settings = prefs.settingsFlow.first()
+            val reLoginError = when {
+                settings.password.isEmpty() -> "SESSION_EXPIRED:no_password"
+                else -> "SESSION_EXPIRED"
+            }
             return if (reLogin()) {
                 Log.d(TAG, "Re-login succeeded, retrying check")
                 doCheckAndBook()
             } else {
-                RepoResult.Error("SESSION_EXPIRED", 401)
+                RepoResult.Error(reLoginError, 401)
             }
         }
         return result

@@ -19,6 +19,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import com.usvisa.appointment.data.model.CANADA_FACILITIES
 import com.usvisa.appointment.data.repository.FacilityFromPage
 import java.time.Instant
@@ -35,6 +37,7 @@ fun SettingsScreen(
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showEndDatePicker by remember { mutableStateOf(false) }
     var facilitiesExpanded by remember { mutableStateOf(false) }
+    var showPassword by remember { mutableStateOf(false) }
 
     val startDatePickerState = rememberDatePickerState()
     val endDatePickerState = rememberDatePickerState()
@@ -116,6 +119,52 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+
+            // ── Account Credentials ───────────────────────────────────────────
+            SectionHeader(Icons.Default.AccountCircle, "Account Credentials")
+
+            Text(
+                "Saved for automatic re-login when session expires.",
+                fontSize = 12.sp,
+                color = if (uiState.password.isEmpty()) Color(0xFFFF7043)
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+
+            if (uiState.password.isEmpty()) {
+                InfoCard("Password not saved — auto re-login will fail. Enter it below.", isSuccess = false)
+            }
+
+            OutlinedTextField(
+                value = uiState.email,
+                onValueChange = viewModel::onEmailChange,
+                label = { Text("Email") },
+                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            OutlinedTextField(
+                value = uiState.password,
+                onValueChange = viewModel::onPasswordChange,
+                label = { Text("Password") },
+                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                trailingIcon = {
+                    IconButton(onClick = { showPassword = !showPassword }) {
+                        Icon(
+                            if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = if (showPassword) "Hide" else "Show"
+                        )
+                    }
+                },
+                visualTransformation = if (showPassword) VisualTransformation.None
+                                       else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            HorizontalDivider()
 
             // ── Consulate / Facility ───────────────────────────────────────────
             SectionHeader(Icons.Default.Business, "Consulate (Facility)")

@@ -13,6 +13,8 @@ import kotlinx.coroutines.launch
 data class SettingsUiState(
     val settings: AppSettings = AppSettings(),
     val isSaved: Boolean = false,
+    val email: String = "",
+    val password: String = "",
     val facilityId: String = "",
     val facilityName: String = "",
     val startDate: String = "",
@@ -40,6 +42,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 val scheduleId = s.manualScheduleId.ifEmpty { s.scheduleId }
                 _uiState.value = SettingsUiState(
                     settings = s,
+                    email = s.email,
+                    password = s.password,
                     facilityId = s.facilityId,
                     facilityName = s.facilityName,
                     startDate = s.startDate,
@@ -69,6 +73,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun onEmailChange(v: String)    = _uiState.update { it.copy(email = v, isSaved = false) }
+    fun onPasswordChange(v: String) = _uiState.update { it.copy(password = v, isSaved = false) }
+
     fun onFacilitySelected(facility: FacilityFromPage) =
         _uiState.update { it.copy(facilityId = facility.id, facilityName = facility.name, isSaved = false) }
 
@@ -84,6 +91,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val s = _uiState.value
         val seconds = s.intervalSecondsText.trim().toIntOrNull()?.coerceAtLeast(5) ?: 30
         viewModelScope.launch {
+            if (s.email.isNotBlank() && s.password.isNotBlank()) {
+                prefsManager.saveLoginInfo(s.email, s.password)
+            }
             prefsManager.saveAppointmentSettings(
                 facilityId = s.facilityId,
                 facilityName = s.facilityName,
