@@ -110,6 +110,15 @@ class AppointmentRepository(private val context: Context) {
             val sessionCookie = apiClient.cookieJar.getSessionCookie("ais.usvisa-info.com")
             prefs.saveSessionData(scheduleId, sessionCookie, csrf)
 
+            // Sync new _yatri_session back to WebView CookieManager so both sources stay current
+            if (sessionCookie.isNotEmpty()) {
+                runCatching {
+                    android.webkit.CookieManager.getInstance().setCookie(
+                        "https://ais.usvisa-info.com", "_yatri_session=$sessionCookie; Path=/"
+                    )
+                }
+            }
+
             Log.d(TAG, "Auto re-login success, scheduleId=$scheduleId")
             true
         } catch (e: Exception) {

@@ -37,11 +37,14 @@ class PersistentCookieJar(private val context: Context) : CookieJar {
     override fun loadForRequest(url: HttpUrl): List<Cookie> {
         val stored = cookies[url.host]?.toMutableList() ?: mutableListOf()
 
-        // Always pull fresh cookies directly from the WebView CookieManager so that
-        // cf_clearance and _yatri_session set during WebView login are never missing,
-        // even if importWebViewCookies() was skipped or ran on a different instance.
+        // Pull fresh cookies from the WebView CookieManager on every request.
+        // WebView cookies ALWAYS win over stored — the stored jar may hold an old
+        // expired _yatri_session from a previous run that wasn't yet overwritten.
+        // Pass the full URL (scheme+host+path, no query) so path-restricted cookies
+        // like _yatri_session (path=/en-ca/niv/) are correctly included.
+        val cookieUrl = "${url.scheme}://${url.host}${url.encodedPath}"
         val webViewStr = runCatching {
-            android.webkit.CookieManager.getInstance().getCookie(url.toString())
+            android.webkit.CookieManager.getInstance().getCookie(cookieUrl)
         }.getOrNull().orEmpty()
 
         webViewStr.split(";").forEach { part ->
@@ -56,9 +59,8 @@ class PersistentCookieJar(private val context: Context) : CookieJar {
                             .domain(url.host).path("/")
                             .build()
                     }.getOrNull()?.let { wvc ->
-                        // Only add if not already in stored (programmatic re-login
-                        // may have refreshed _yatri_session — don't overwrite it)
-                        if (stored.none { it.name == wvc.name }) stored.add(wvc)
+                        stored.removeAll { it.name == wvc.name }
+                        stored.add(wvc)
                     }
                 }
             }
