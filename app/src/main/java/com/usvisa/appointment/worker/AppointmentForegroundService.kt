@@ -88,8 +88,9 @@ class AppointmentForegroundService : Service() {
             _isRunning.value = true
             _checkCount.value = 0
 
-            // Ping the appointment page every 25 min to keep _yatri_session alive
-            val keepaliveIntervalMs = 25 * 60 * 1000L
+            // Ping the appointment page every 20 min to keep _yatri_session alive
+            // (server session timeout is ~30 min; 20 min gives a safe 10-min buffer)
+            val keepaliveIntervalMs = 20 * 60 * 1000L
             var lastKeepaliveMs = System.currentTimeMillis()
 
             while (isActive) {
