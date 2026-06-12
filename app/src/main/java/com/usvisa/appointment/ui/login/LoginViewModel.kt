@@ -73,6 +73,9 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
     // Called by WebViewLoginScreen when login succeeds
     fun onWebViewLoginSuccess(scheduleId: String, csrfToken: String, cookieHeader: String) {
         viewModelScope.launch {
+            // Save credentials first so reLogin() can use them if the cookie transfer fails
+            prefsManager.saveLoginInfo(_uiState.value.email, _uiState.value.password)
+
             // Import WebView cookies into OkHttp so API calls work
             importWebViewCookies(cookieHeader)
 
@@ -82,7 +85,13 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                 sessionCookie = extractSessionCookie(cookieHeader),
                 csrfToken = csrfToken
             )
-            prefsManager.saveLoginInfo(_uiState.value.email, _uiState.value.password)
+
+            // Fallback: if getCookie() missed the session (renderer sync delay), use the
+            // API-based re-login while cf_clearance is still fresh in the OkHttp jar.
+            if (repository.apiClient.cookieJar.sessionCookieOverride.isEmpty()) {
+                android.util.Log.w("LoginVM", "No session cookie captured — attempting API re-login")
+                repository.reLogin()
+            }
 
             // Try to load appointment page to detect facility IDs
             val facilities = if (scheduleId.isNotEmpty()) {
@@ -129,15 +138,16 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         val host = "ais.usvisa-info.com"
         val httpUrl = "https://$host/".toHttpUrl()
 
-        // This runs on the main thread — safe to call CookieManager directly.
-        // Must use the niv path so path-scoped cookies like _yatri_session are returned.
-        val webViewStr = runCatching {
-            CookieManager.getInstance().getCookie("https://$host/en-ca/niv/")
-        }.getOrNull().orEmpty()
+        // Read cookies from multiple paths so path-scoped cookies (_yatri_session) are captured.
+        // Later sources in the list win on name collision; niv path is last so it takes priority.
+        val sources = mutableListOf(cookieHeader)
+        for (path in listOf("https://$host/", "https://$host/en-ca/niv/")) {
+            runCatching { CookieManager.getInstance().getCookie(path) }
+                .getOrNull()?.let { if (it.isNotEmpty()) sources.add(it) }
+        }
 
-        // Merge both sources; webViewStr (freshest) wins on name collision
         val merged = linkedMapOf<String, String>()
-        listOf(cookieHeader, webViewStr).forEach { src ->
+        sources.forEach { src ->
             src.split(";").forEach { part ->
                 val idx = part.indexOf('=')
                 if (idx > 0) {
@@ -146,6 +156,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        android.util.Log.d("LoginVM", "importWebViewCookies: merged keys=${merged.keys.joinToString()}, hasSession=${merged.containsKey("_yatri_session")}")
         if (merged.isEmpty()) return
 
         val cookies = merged.mapNotNull { (name, value) ->

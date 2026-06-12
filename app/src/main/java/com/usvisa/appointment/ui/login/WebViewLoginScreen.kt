@@ -70,7 +70,13 @@ fun WebViewLoginScreen(
                                 isSuccessPage(url) -> {
                                     statusText = "Logged in — reading account…"
                                     view.evaluateJavascript(EXTRACT_JS) { raw ->
-                                        handleExtractResult(raw, url, onSuccess, onError)
+                                        // Android multi-process WebView syncs renderer cookies
+                                        // to the main process asynchronously. Without this delay,
+                                        // getCookie() returns stale/empty data and the session
+                                        // cookie never reaches OkHttp.
+                                        view.postDelayed({
+                                            handleExtractResult(raw, url, onSuccess, onError)
+                                        }, 800)
                                     }
                                 }
 
