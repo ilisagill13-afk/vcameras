@@ -120,6 +120,11 @@ class AppointmentRepository(private val context: Context) {
             Log.d(TAG, "Available total=${all.size}")
             RepoResult.Success(all)
 
+        } catch (e: java.io.IOException) {
+            // Gson throws MalformedJsonException (extends IOException) when it receives
+            // HTML instead of JSON — this means Cloudflare blocked the request (session expired)
+            Log.w(TAG, "Parse/IO error in getAvailableDays — likely session expired", e)
+            RepoResult.Error("Session expired (unreadable response)", 401)
         } catch (e: Exception) {
             Log.e(TAG, "Days error", e)
             RepoResult.Error("Network error: ${e.message}")
@@ -167,6 +172,9 @@ class AppointmentRepository(private val context: Context) {
             if (!resp.isSuccessful)
                 return RepoResult.Error("HTTP ${resp.code()} fetching times for $date")
             RepoResult.Success(resp.body() ?: AvailableTimes(emptyList(), emptyList()))
+        } catch (e: java.io.IOException) {
+            Log.w(TAG, "Parse/IO error in getAvailableTimes — likely session expired", e)
+            RepoResult.Error("Session expired (unreadable response)", 401)
         } catch (e: Exception) {
             RepoResult.Error("Network error: ${e.message}")
         }
