@@ -21,7 +21,8 @@ data class HomeUiState(
     val isServiceRunning: Boolean = false,
     val isCheckingNow: Boolean = false,
     val totalChecks: Int = 0,
-    val logMessages: List<String> = emptyList()
+    val logMessages: List<String> = emptyList(),
+    val needsLogin: Boolean = false
 )
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
@@ -37,7 +38,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             prefsManager.settingsFlow.collect { settings ->
-                _uiState.update { it.copy(settings = settings) }
+                _uiState.update { it.copy(settings = settings, needsLogin = settings.needsManualLogin) }
             }
         }
 

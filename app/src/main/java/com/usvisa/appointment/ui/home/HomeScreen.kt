@@ -31,6 +31,7 @@ fun HomeScreen(
     val settings = uiState.settings
     var showLogoutDialog by remember { mutableStateOf(false) }
 
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -67,6 +68,7 @@ fun HomeScreen(
                 MonitoringStatusCard(
                     isRunning = uiState.isServiceRunning,
                     isChecking = uiState.isCheckingNow,
+                    needsLogin = uiState.needsLogin,
                     facilityName = settings.facilityName.ifEmpty { settings.manualFacilityId.ifEmpty { "—" } },
                     startDate = settings.startDate,
                     endDate = settings.endDate,
@@ -76,7 +78,8 @@ fun HomeScreen(
                     isLoggedIn = settings.isLoggedIn,
                     onStart = { viewModel.startMonitoring() },
                     onStop = { viewModel.stopMonitoring() },
-                    onCheckNow = { viewModel.checkNow() }
+                    onCheckNow = { viewModel.checkNow() },
+                    onLoginAgain = { viewModel.logout(); onLogout() }
                 )
             }
 
@@ -138,6 +141,7 @@ fun HomeScreen(
 private fun MonitoringStatusCard(
     isRunning: Boolean,
     isChecking: Boolean,
+    needsLogin: Boolean,
     facilityName: String,
     startDate: String,
     endDate: String,
@@ -147,9 +151,11 @@ private fun MonitoringStatusCard(
     isLoggedIn: Boolean,
     onStart: () -> Unit,
     onStop: () -> Unit,
-    onCheckNow: () -> Unit
+    onCheckNow: () -> Unit,
+    onLoginAgain: () -> Unit
 ) {
     val statusColor = when {
+        needsLogin -> Color(0xFFFFB300)
         isChecking -> Color(0xFFFFA726)
         isRunning  -> Color(0xFF66BB6A)
         else       -> Color(0xFF546E7A)
@@ -159,12 +165,17 @@ private fun MonitoringStatusCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isRunning) Color(0xFF0D2137)
-                             else MaterialTheme.colorScheme.surface
+            containerColor = when {
+                needsLogin -> Color(0xFF2B1F00)
+                isRunning  -> Color(0xFF0D2137)
+                else       -> MaterialTheme.colorScheme.surface
+            }
         ),
-        border = if (isRunning)
-            androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1565C0))
-        else null
+        border = when {
+            needsLogin -> androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB300))
+            isRunning  -> androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1565C0))
+            else       -> null
+        }
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             // Status row
@@ -173,6 +184,7 @@ private fun MonitoringStatusCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = when {
+                        needsLogin -> "Login Required"
                         isChecking -> "Checking…"
                         isRunning  -> "Monitoring Active"
                         else       -> "Stopped"
@@ -191,7 +203,14 @@ private fun MonitoringStatusCard(
                 }
             }
 
-            if (isRunning && startDate.isNotEmpty()) {
+            if (needsLogin) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Session expired. Auto re-login failed (Cloudflare). Log in again to resume monitoring automatically.",
+                    fontSize = 12.sp,
+                    color = Color(0xFFFFB300).copy(alpha = 0.85f)
+                )
+            } else if (isRunning && startDate.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Dates: $startDate → $endDate",
@@ -214,42 +233,54 @@ private fun MonitoringStatusCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                if (!isRunning) {
-                    Button(
-                        onClick = onStart,
-                        modifier = Modifier.weight(1f),
-                        enabled = isConfigured && isLoggedIn && !isChecking,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
-                    ) {
-                        Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Start")
-                    }
-                } else {
-                    OutlinedButton(
-                        onClick = onStop,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF5350))
-                    ) {
-                        Icon(Icons.Default.Stop, null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Stop")
-                    }
-                }
-
-                OutlinedButton(
-                    onClick = onCheckNow,
-                    modifier = Modifier.weight(1f),
-                    enabled = isConfigured && isLoggedIn && !isChecking
+            if (needsLogin) {
+                Button(
+                    onClick = onLoginAgain,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB300))
                 ) {
-                    if (isChecking) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Icon(Icons.Default.Login, null, modifier = Modifier.size(18.dp), tint = Color.Black)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Login Again", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    if (!isRunning) {
+                        Button(
+                            onClick = onStart,
+                            modifier = Modifier.weight(1f),
+                            enabled = isConfigured && isLoggedIn && !isChecking,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                        ) {
+                            Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Start")
+                        }
                     } else {
-                        Icon(Icons.Default.Search, null, modifier = Modifier.size(18.dp))
+                        OutlinedButton(
+                            onClick = onStop,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF5350))
+                        ) {
+                            Icon(Icons.Default.Stop, null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Stop")
+                        }
                     }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (isChecking) "Checking" else "Check Now")
+
+                    OutlinedButton(
+                        onClick = onCheckNow,
+                        modifier = Modifier.weight(1f),
+                        enabled = isConfigured && isLoggedIn && !isChecking
+                    ) {
+                        if (isChecking) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.Search, null, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(if (isChecking) "Checking" else "Check Now")
+                    }
                 }
             }
         }
