@@ -62,8 +62,9 @@ data class AppSettings(
     val csrfToken: String = "",
     val autoBook: Boolean = true,
     val notifyOnFound: Boolean = true,
-    val manualScheduleId: String = "",    // user override for schedule ID
-    val manualFacilityId: String = ""     // user override for facility ID
+    val manualScheduleId: String = "",
+    val manualFacilityId: String = "",
+    val needsManualLogin: Boolean = false
 )
 
 data class FacilityOption(

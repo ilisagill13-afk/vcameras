@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filter
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.random.Random
@@ -68,17 +69,25 @@ class AppointmentForegroundService : Service() {
     private fun startMonitoring() {
         if (monitoringJob?.isActive == true) return
 
-        val notification = NotificationHelper.buildMonitoringNotification(
-            this, "Starting slot monitoring..."
+        startForeground(
+            NotificationHelper.NOTIFICATION_ID_MONITORING,
+            NotificationHelper.buildMonitoringNotification(this, "Starting slot monitoring…")
         )
-        startForeground(NotificationHelper.NOTIFICATION_ID_MONITORING, notification)
-        _isRunning.value = true
-        _checkCount.value = 0
 
         val prefs = PreferencesManager(this)
         val repo = AppointmentRepository.getInstance(this)
 
         monitoringJob = serviceScope.launch {
+            // If a previous session expiry required manual login, wait here until user logs in
+            val current = prefs.settingsFlow.first()
+            if (current.needsManualLogin) {
+                enterWaitForLoginState(prefs)
+                return@launch
+            }
+
+            _isRunning.value = true
+            _checkCount.value = 0
+
             while (isActive) {
                 val settings = prefs.settingsFlow.first()
                 val intervalSec = settings.checkIntervalSeconds.coerceAtLeast(5)
@@ -96,27 +105,23 @@ class AppointmentForegroundService : Service() {
                             val isBooked = firstLine.contains(" at ") && !firstLine.startsWith("Found")
 
                             if (isBooked && settings.autoBook) {
-                                val firstLineParts = firstLine.split(" at ")
-                                val date = firstLineParts[0].trim()
-                                val time = firstLineParts.getOrElse(1) { "" }.trim()
+                                val parts = firstLine.split(" at ")
+                                val date = parts[0].trim()
+                                val time = parts.getOrElse(1) { "" }.trim()
                                 log("✓ BOOKED: $firstLine")
-                                // log all available dates that were found
                                 lines.drop(1).filter { it.isNotEmpty() }.forEach { log("  $it") }
                                 NotificationHelper.notifyBookingSuccess(
-                                    this@AppointmentForegroundService,
-                                    date, time, settings.facilityName
+                                    this@AppointmentForegroundService, date, time, settings.facilityName
                                 )
                                 stopMonitoring()
                                 return@launch
                             } else {
                                 log("✓ $firstLine")
-                                // log all available dates on separate lines
                                 lines.drop(1).filter { it.isNotEmpty() }.forEach { log("  $it") }
                                 if (settings.notifyOnFound) {
                                     val earliest = firstLine.substringAfter("Earliest: ").substringBefore("\n")
                                     NotificationHelper.notifySlotFound(
-                                        this@AppointmentForegroundService,
-                                        earliest, settings.facilityName
+                                        this@AppointmentForegroundService, earliest, settings.facilityName
                                     )
                                 }
                                 updateNotification("Slots found: $firstLine")
@@ -125,9 +130,10 @@ class AppointmentForegroundService : Service() {
                         is RepoResult.Error -> {
                             _checkCount.value++
                             if (result.message == "SESSION_EXPIRED") {
-                                log("✗ Session expired — auto re-login failed. Manual login required.")
+                                prefs.setNeedsManualLogin()
+                                log("✗ Session expired — auto re-login failed. Open app to log in.")
                                 NotificationHelper.notifyLoginRequired(this@AppointmentForegroundService)
-                                stopMonitoring()
+                                enterWaitForLoginState(prefs)
                                 return@launch
                             }
                             log("✗ ${result.message}")
@@ -150,6 +156,23 @@ class AppointmentForegroundService : Service() {
                 delay(actualDelay * 1000L)
             }
         }
+    }
+
+    // Holds the foreground service alive but does not poll — waits for login then resumes
+    private suspend fun enterWaitForLoginState(prefs: PreferencesManager) {
+        _isRunning.value = false
+        updateNotification("⚠ Login required — open app to re-login")
+        log("Paused — waiting for login…")
+
+        // Suspend until needsManualLogin is cleared (happens in saveSessionData after login)
+        prefs.settingsFlow
+            .filter { !it.needsManualLogin && it.isLoggedIn }
+            .first()
+
+        // User has logged in — restart the monitoring loop
+        log("Login detected — resuming monitoring…")
+        monitoringJob = null
+        startMonitoring()
     }
 
     private fun stopMonitoring() {

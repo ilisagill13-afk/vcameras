@@ -30,6 +30,7 @@ class PreferencesManager(private val context: Context) {
         val KEY_NOTIFY_ON_FOUND = booleanPreferencesKey("notify_on_found")
         val KEY_MANUAL_SCHEDULE_ID = stringPreferencesKey("manual_schedule_id")
         val KEY_MANUAL_FACILITY_ID = stringPreferencesKey("manual_facility_id")
+        val KEY_NEEDS_MANUAL_LOGIN = booleanPreferencesKey("needs_manual_login")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data
@@ -50,7 +51,8 @@ class PreferencesManager(private val context: Context) {
                 autoBook = prefs[KEY_AUTO_BOOK] ?: true,
                 notifyOnFound = prefs[KEY_NOTIFY_ON_FOUND] ?: true,
                 manualScheduleId = prefs[KEY_MANUAL_SCHEDULE_ID] ?: "",
-                manualFacilityId = prefs[KEY_MANUAL_FACILITY_ID] ?: ""
+                manualFacilityId = prefs[KEY_MANUAL_FACILITY_ID] ?: "",
+                needsManualLogin = prefs[KEY_NEEDS_MANUAL_LOGIN] ?: false
             )
         }
 
@@ -67,6 +69,14 @@ class PreferencesManager(private val context: Context) {
             prefs[KEY_SESSION_COOKIE] = sessionCookie
             prefs[KEY_CSRF_TOKEN] = csrfToken
             prefs[KEY_IS_LOGGED_IN] = scheduleId.isNotEmpty()
+            prefs[KEY_NEEDS_MANUAL_LOGIN] = false   // login succeeded, clear the flag
+        }
+    }
+
+    suspend fun setNeedsManualLogin() {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_NEEDS_MANUAL_LOGIN] = true
+            prefs[KEY_IS_LOGGED_IN] = false
         }
     }
 
