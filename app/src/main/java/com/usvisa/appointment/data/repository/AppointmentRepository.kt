@@ -285,6 +285,25 @@ class AppointmentRepository(private val context: Context) {
         return null
     }
 
+    // ─── Session Keepalive ─────────────────────────────────────────────────────
+
+    // Lightweight ping to keep _yatri_session alive (~30 min inactivity timeout).
+    // Returns true if the server responded with a recognisable page, false on error.
+    suspend fun keepAlive(): Boolean {
+        return try {
+            val settings = prefs.settingsFlow.first()
+            val scheduleId = settings.manualScheduleId.ifEmpty { settings.scheduleId }
+            if (scheduleId.isEmpty()) return false
+            val resp = apiClient.service.getAppointmentPage(scheduleId)
+            val ok = resp.isSuccessful || resp.code() == 302
+            Log.d(TAG, "Keepalive HTTP ${resp.code()}, ok=$ok")
+            ok
+        } catch (e: Exception) {
+            Log.w(TAG, "Keepalive failed", e)
+            false
+        }
+    }
+
     // ─── Main entry point called by service / ViewModel ───────────────────────
 
     suspend fun checkAndBookSlots(): RepoResult<String> {

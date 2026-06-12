@@ -88,6 +88,10 @@ class AppointmentForegroundService : Service() {
             _isRunning.value = true
             _checkCount.value = 0
 
+            // Ping the appointment page every 25 min to keep _yatri_session alive
+            val keepaliveIntervalMs = 25 * 60 * 1000L
+            var lastKeepaliveMs = System.currentTimeMillis()
+
             while (isActive) {
                 val settings = prefs.settingsFlow.first()
                 val intervalSec = settings.checkIntervalSeconds.coerceAtLeast(5)
@@ -158,6 +162,16 @@ class AppointmentForegroundService : Service() {
                 updateNotification("[$timeStr] Waiting ${actualDelay}s (next check)…")
                 log("Next check in ${actualDelay}s")
                 delay(actualDelay * 1000L)
+
+                // Session keepalive: ping every 25 min so _yatri_session never times out
+                val now = System.currentTimeMillis()
+                if (now - lastKeepaliveMs >= keepaliveIntervalMs) {
+                    log("Keepalive ping…")
+                    val ok = repo.keepAlive()
+                    lastKeepaliveMs = now
+                    if (!ok) log("  Keepalive warning: server returned unexpected response")
+                    else log("  Session refreshed")
+                }
             }
         }
     }
