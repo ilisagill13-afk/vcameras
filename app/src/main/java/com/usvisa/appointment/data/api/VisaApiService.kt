@@ -36,18 +36,28 @@ interface VisaApiService {
     ): Response<ResponseBody>
 
     // Available dates for a consulate within a schedule
+    @Headers(
+        "X-Requested-With: XMLHttpRequest",
+        "Accept: application/json, text/javascript, */*; q=0.01"
+    )
     @GET("schedule/{scheduleId}/appointment/days/{facilityId}.json")
     suspend fun getAvailableDays(
         @Path("scheduleId") scheduleId: String,
         @Path("facilityId") facilityId: String,
+        @Header("Referer") referer: String,
         @Query("appointments[expedite]") expedite: Boolean = false
     ): Response<List<AvailableDay>>
 
     // Available time slots for a specific date
+    @Headers(
+        "X-Requested-With: XMLHttpRequest",
+        "Accept: application/json, text/javascript, */*; q=0.01"
+    )
     @GET("schedule/{scheduleId}/appointment/times/{facilityId}.json")
     suspend fun getAvailableTimes(
         @Path("scheduleId") scheduleId: String,
         @Path("facilityId") facilityId: String,
+        @Header("Referer") referer: String,
         @Query("date") date: String,
         @Query("appointments[expedite]") expedite: Boolean = false
     ): Response<AvailableTimes>

@@ -85,7 +85,11 @@ class ApiClient(private val context: Context) {
                         header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                     }
                 }
-                .header("Referer", "https://ais.usvisa-info.com/en-ca/niv/users/sign_in")
+                // Use request-specific Referer if already set, else default to sign-in page
+                .apply {
+                    if (original.header("Referer") == null)
+                        header("Referer", "https://ais.usvisa-info.com/en-ca/niv/users/sign_in")
+                }
             chain.proceed(builder.build())
         }
         .addInterceptor(HttpLoggingInterceptor { Log.d(TAG, it) }.apply {

@@ -60,6 +60,9 @@ class AppointmentRepository(private val context: Context) {
 
     // ─── Slot Checking ─────────────────────────────────────────────────────────
 
+    private fun apptReferer(scheduleId: String) =
+        "https://ais.usvisa-info.com/en-ca/niv/schedule/$scheduleId/appointment"
+
     suspend fun getAvailableDays(
         scheduleId: String,
         facilityId: String,
@@ -67,7 +70,7 @@ class AppointmentRepository(private val context: Context) {
         endDate: LocalDate
     ): RepoResult<List<AvailableDay>> {
         return try {
-            val resp = apiClient.service.getAvailableDays(scheduleId, facilityId)
+            val resp = apiClient.service.getAvailableDays(scheduleId, facilityId, apptReferer(scheduleId))
 
             when (resp.code()) {
                 401, 403 -> return RepoResult.Error(
@@ -100,7 +103,7 @@ class AppointmentRepository(private val context: Context) {
         date: String
     ): RepoResult<AvailableTimes> {
         return try {
-            val resp = apiClient.service.getAvailableTimes(scheduleId, facilityId, date)
+            val resp = apiClient.service.getAvailableTimes(scheduleId, facilityId, apptReferer(scheduleId), date)
             if (!resp.isSuccessful)
                 return RepoResult.Error("HTTP ${resp.code()} fetching times for $date")
             RepoResult.Success(resp.body() ?: AvailableTimes(emptyList(), emptyList()))
