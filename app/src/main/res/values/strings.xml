@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">US Visa Appointment</string>
-    <string name="monitoring_notification_title">US Visa Slot Monitor</string>
+    <string name="app_name">Sardarji Visa Scheduler</string>
+    <string name="monitoring_notification_title">Sardarji Visa Scheduler</string>
     <string name="monitoring_notification_text">Monitoring for available appointment slots...</string>
     <string name="slot_found_title">Appointment Slot Available!</string>
     <string name="booking_success_title">Appointment Booked!</string>

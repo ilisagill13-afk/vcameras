@@ -64,7 +64,7 @@ object NotificationHelper {
 
         return NotificationCompat.Builder(context, CHANNEL_MONITORING)
             .setSmallIcon(R.drawable.ic_visa)
-            .setContentTitle("US Visa Slot Monitor")
+            .setContentTitle("Sardarji Visa Scheduler")
             .setContentText(message)
             .setOngoing(true)
             .setContentIntent(pendingIntent)

@@ -37,7 +37,7 @@ fun HomeScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("US Visa Monitor", fontWeight = FontWeight.Bold)
+                        Text("Sardarji Visa Scheduler", fontWeight = FontWeight.Bold)
                         Text(
                             settings.email,
                             fontSize = 12.sp,
