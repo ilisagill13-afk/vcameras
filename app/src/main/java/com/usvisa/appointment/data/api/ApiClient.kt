@@ -35,7 +35,35 @@ class PersistentCookieJar(private val context: Context) : CookieJar {
     }
 
     override fun loadForRequest(url: HttpUrl): List<Cookie> {
-        return cookies[url.host] ?: emptyList()
+        val stored = cookies[url.host]?.toMutableList() ?: mutableListOf()
+
+        // Always pull fresh cookies directly from the WebView CookieManager so that
+        // cf_clearance and _yatri_session set during WebView login are never missing,
+        // even if importWebViewCookies() was skipped or ran on a different instance.
+        val webViewStr = runCatching {
+            android.webkit.CookieManager.getInstance().getCookie(url.toString())
+        }.getOrNull().orEmpty()
+
+        webViewStr.split(";").forEach { part ->
+            val idx = part.indexOf('=')
+            if (idx > 0) {
+                val name = part.substring(0, idx).trim()
+                val value = part.substring(idx + 1).trim()
+                if (name.isNotEmpty()) {
+                    runCatching {
+                        Cookie.Builder()
+                            .name(name).value(value)
+                            .domain(url.host).path("/")
+                            .build()
+                    }.getOrNull()?.let { wvc ->
+                        // Only add if not already in stored (programmatic re-login
+                        // may have refreshed _yatri_session — don't overwrite it)
+                        if (stored.none { it.name == wvc.name }) stored.add(wvc)
+                    }
+                }
+            }
+        }
+        return stored
     }
 
     private fun saveToPrefs(host: String, cookies: List<Cookie>) {

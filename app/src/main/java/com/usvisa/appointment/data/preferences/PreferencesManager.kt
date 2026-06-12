@@ -76,8 +76,8 @@ class PreferencesManager(private val context: Context) {
             prefs[KEY_SCHEDULE_ID] = scheduleId
             prefs[KEY_SESSION_COOKIE] = sessionCookie
             prefs[KEY_CSRF_TOKEN] = csrfToken
-            prefs[KEY_IS_LOGGED_IN] = scheduleId.isNotEmpty()
-            prefs[KEY_NEEDS_MANUAL_LOGIN] = false   // login succeeded, clear the flag
+            prefs[KEY_IS_LOGGED_IN] = true  // called only on successful login
+            prefs[KEY_NEEDS_MANUAL_LOGIN] = false
         }
     }
 

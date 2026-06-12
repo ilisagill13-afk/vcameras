@@ -214,14 +214,15 @@ private fun handleExtractResult(
             scheduleId = Regex("/schedule/(\\d+)/").find(pageUrl)?.groupValues?.get(1) ?: ""
         }
 
+        // Flush ensures all cookies written by Cloudflare JS are committed before reading
+        CookieManager.getInstance().flush()
         val cookies = CookieManager.getInstance().getCookie("https://$AIS_HOST") ?: ""
         Log.d(TAG, "scheduleId=$scheduleId csrf=${csrf.take(15)}… cookies=${cookies.take(40)}…")
 
         onSuccess(scheduleId, csrf, cookies)
     } catch (e: Exception) {
         Log.e(TAG, "Extract error", e)
-        // Login did succeed even if parsing failed — return empty schedule ID,
-        // user can fill it manually in Settings
+        CookieManager.getInstance().flush()
         val cookies = CookieManager.getInstance().getCookie("https://$AIS_HOST") ?: ""
         onSuccess("", "", cookies)
     }
