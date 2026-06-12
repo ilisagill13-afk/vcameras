@@ -41,6 +41,25 @@ fun LoginScreen(
         if (uiState.isLoggedIn) onLoginSuccess()
     }
 
+    // Show full-screen spinner when auto-login is in progress (credentials already saved)
+    if (uiState.autoLoggingIn && !uiState.showWebView && uiState.error.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(listOf(Color(0xFF0D1B2A), Color(0xFF1B3A5C)))),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = Color(0xFF4FC3F7), modifier = Modifier.size(48.dp))
+                Spacer(modifier = Modifier.height(20.dp))
+                Text("Auto signing in…", color = Color(0xFF90CAF9), fontSize = 16.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(uiState.email, color = Color(0xFF64B5F6), fontSize = 13.sp)
+            }
+        }
+        return
+    }
+
     // Show full-screen WebView overlay when authenticating
     if (uiState.showWebView) {
         WebViewLoginScreen(

@@ -23,7 +23,8 @@ data class LoginUiState(
     val error: String = "",
     val isLoggedIn: Boolean = false,
     val scheduleId: String = "",
-    val detectedFacilities: List<FacilityFromPage> = emptyList()
+    val detectedFacilities: List<FacilityFromPage> = emptyList(),
+    val autoLoggingIn: Boolean = false
 )
 
 class LoginViewModel(application: Application) : AndroidViewModel(application) {
@@ -39,9 +40,15 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
             val settings = prefsManager.settingsFlow.first()
             _uiState.value = _uiState.value.copy(
                 email = settings.email,
+                password = settings.password,
                 isLoggedIn = settings.isLoggedIn,
                 scheduleId = settings.scheduleId
             )
+            // If credentials are already saved, skip the form and go straight to WebView login
+            if (settings.email.isNotEmpty() && settings.password.isNotEmpty()) {
+                _uiState.value = _uiState.value.copy(autoLoggingIn = true)
+                startWebViewLogin()
+            }
         }
     }
 
@@ -113,6 +120,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.value = _uiState.value.copy(
             showWebView = false,
             isLoading = false,
+            autoLoggingIn = false,
             error = error
         )
     }
