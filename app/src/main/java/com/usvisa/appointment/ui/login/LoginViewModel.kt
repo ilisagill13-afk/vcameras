@@ -4,6 +4,7 @@ import android.app.Application
 import android.webkit.CookieManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.usvisa.appointment.data.api.WebViewFetcher
 import com.usvisa.appointment.data.preferences.PreferencesManager
 import com.usvisa.appointment.data.repository.AppointmentRepository
 import com.usvisa.appointment.data.repository.FacilityFromPage
@@ -78,6 +79,10 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
 
             // Import WebView cookies into OkHttp so API calls work
             importWebViewCookies(cookieHeader)
+
+            // Prime the hidden WebViewFetcher with the fresh session cookies so
+            // background monitoring API calls use Chromium TLS (bypasses Cloudflare JA3)
+            WebViewFetcher.getInstance(getApplication()).initAfterLogin()
 
             // Persist session
             prefsManager.saveSessionData(

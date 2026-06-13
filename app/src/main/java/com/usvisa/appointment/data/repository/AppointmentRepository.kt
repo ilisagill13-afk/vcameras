@@ -2,7 +2,10 @@ package com.usvisa.appointment.data.repository
 
 import android.content.Context
 import android.util.Log
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.usvisa.appointment.data.api.ApiClient
+import com.usvisa.appointment.data.api.WebViewFetcher
 import com.usvisa.appointment.data.model.*
 import com.usvisa.appointment.data.preferences.PreferencesManager
 import kotlinx.coroutines.flow.first
@@ -135,30 +138,36 @@ class AppointmentRepository(private val context: Context) {
     private fun apptReferer(scheduleId: String) =
         "https://ais.usvisa-info.com/en-ca/niv/schedule/$scheduleId/appointment"
 
-    // Returns ALL available days from the API, sorted by date (no range filter — callers filter)
+    private val gson = Gson()
+
+    // Returns ALL available days via WebView fetch (bypasses Cloudflare TLS fingerprinting)
     suspend fun getAvailableDays(
         scheduleId: String,
         facilityId: String
     ): RepoResult<List<AvailableDay>> {
         return try {
-            val resp = apiClient.service.getAvailableDays(scheduleId, facilityId, apptReferer(scheduleId))
+            val url = "https://ais.usvisa-info.com/en-ca/niv/schedule/$scheduleId" +
+                "/appointment/days/$facilityId.json?appointments[expedite]=false"
+            val fetcher = WebViewFetcher.getInstance(context)
+            val body = fetcher.fetchGet(url)
 
-            when (resp.code()) {
-                302 -> return RepoResult.Error("Session expired (redirect to login)", 302)
-                401, 403 -> return RepoResult.Error("Session expired (HTTP ${resp.code()})", resp.code())
+            Log.d(TAG, "getAvailableDays body prefix: ${body.take(80)}")
+
+            when {
+                body.startsWith("SESSION_EXPIRED") ->
+                    return RepoResult.Error("Session expired", 401)
+                body.startsWith("ERROR:") ->
+                    return RepoResult.Error("WebView fetch error: $body")
+                body.contains("sign_in") || body.trimStart().startsWith("<") ->
+                    return RepoResult.Error("Session expired (HTML response)", 302)
             }
-            if (!resp.isSuccessful)
-                return RepoResult.Error("HTTP ${resp.code()} fetching available days")
 
-            val all = (resp.body() ?: emptyList()).sortedBy { it.date }
-            Log.d(TAG, "Available total=${all.size}")
-            RepoResult.Success(all)
+            val type = object : TypeToken<List<AvailableDay>>() {}.type
+            val all: List<AvailableDay> = gson.fromJson(body, type) ?: emptyList()
+            val sorted = all.sortedBy { it.date }
+            Log.d(TAG, "Available total=${sorted.size} (via WebView)")
+            RepoResult.Success(sorted)
 
-        } catch (e: java.io.IOException) {
-            // Gson throws MalformedJsonException (extends IOException) when it receives
-            // HTML instead of JSON — this means Cloudflare blocked the request (session expired)
-            Log.w(TAG, "Parse/IO error in getAvailableDays — likely session expired", e)
-            RepoResult.Error("Session expired (unreadable response)", 401)
         } catch (e: Exception) {
             Log.e(TAG, "Days error", e)
             RepoResult.Error("Network error: ${e.message}")
@@ -202,17 +211,23 @@ class AppointmentRepository(private val context: Context) {
         date: String
     ): RepoResult<AvailableTimes> {
         return try {
-            val resp = apiClient.service.getAvailableTimes(scheduleId, facilityId, apptReferer(scheduleId), date)
-            when (resp.code()) {
-                302 -> return RepoResult.Error("Session expired (redirect to login)", 302)
-                401, 403 -> return RepoResult.Error("Session expired (HTTP ${resp.code()})", resp.code())
+            val url = "https://ais.usvisa-info.com/en-ca/niv/schedule/$scheduleId" +
+                "/appointment/times/$facilityId.json?date=$date&appointments[expedite]=false"
+            val fetcher = WebViewFetcher.getInstance(context)
+            val body = fetcher.fetchGet(url)
+
+            when {
+                body.startsWith("SESSION_EXPIRED") ->
+                    return RepoResult.Error("Session expired", 401)
+                body.startsWith("ERROR:") ->
+                    return RepoResult.Error("WebView fetch error: $body")
+                body.contains("sign_in") || body.trimStart().startsWith("<") ->
+                    return RepoResult.Error("Session expired (HTML response)", 302)
             }
-            if (!resp.isSuccessful)
-                return RepoResult.Error("HTTP ${resp.code()} fetching times for $date")
-            RepoResult.Success(resp.body() ?: AvailableTimes(emptyList(), emptyList()))
-        } catch (e: java.io.IOException) {
-            Log.w(TAG, "Parse/IO error in getAvailableTimes — likely session expired", e)
-            RepoResult.Error("Session expired (unreadable response)", 401)
+
+            val times = gson.fromJson(body, AvailableTimes::class.java)
+                ?: AvailableTimes(emptyList(), emptyList())
+            RepoResult.Success(times)
         } catch (e: Exception) {
             RepoResult.Error("Network error: ${e.message}")
         }
