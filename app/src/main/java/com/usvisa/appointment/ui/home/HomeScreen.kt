@@ -48,8 +48,9 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(bottom = 64.dp),
             factory = { ctx ->
-                WebView(ctx).apply {
-                    with(settings) {
+                // Use 'also' with explicit 'wv' to avoid shadowing the outer 'settings' variable
+                WebView(ctx).also { wv ->
+                    wv.settings.apply {
                         javaScriptEnabled = true
                         domStorageEnabled = true
                         loadWithOverviewMode = true
@@ -63,16 +64,13 @@ fun HomeScreen(
                             "Chrome/124.0.6367.82 Mobile Safari/537.36"
                     }
                     CookieManager.getInstance().setAcceptCookie(true)
-                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-
-                    webViewClient = object : WebViewClient() {
-                        // Allow all navigation within the site
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(wv, true)
+                    wv.webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(
                             view: WebView, request: WebResourceRequest
                         ) = false
                     }
-
-                    loadUrl(startUrl)
+                    wv.loadUrl(startUrl)
                 }
             }
         )
