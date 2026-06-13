@@ -2,6 +2,8 @@ package com.usvisa.appointment.worker
 
 import android.content.Context
 import androidx.work.*
+import com.usvisa.appointment.data.preferences.PreferencesManager
+import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
 // Kept only as a fallback for devices where ForegroundService gets killed.
@@ -36,8 +38,9 @@ class AppointmentWorker(
     }
 
     override suspend fun doWork(): Result {
-        // If service is not running but should be, restart it
-        if (!AppointmentForegroundService.isRunning.value) {
+        val settings = PreferencesManager(applicationContext).settingsFlow.first()
+        // Only restart the service if the user is still logged in
+        if (!AppointmentForegroundService.isRunning.value && settings.isLoggedIn) {
             AppointmentForegroundService.startService(applicationContext)
         }
         return Result.success()

@@ -7,6 +7,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -33,6 +36,7 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val settings = uiState.settings
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showLogs by remember { mutableStateOf(false) }
 
     val scheduleId = settings.manualScheduleId.ifEmpty { settings.scheduleId }
     val startUrl = if (scheduleId.isNotEmpty())
@@ -43,10 +47,11 @@ fun HomeScreen(
     Box(modifier = Modifier.fillMaxSize()) {
 
         // ── Full-screen WebView ────────────────────────────────────────────
+        val webViewBottomPad = if (showLogs) 220.dp else 64.dp
         AndroidView(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 64.dp),
+                .padding(bottom = webViewBottomPad),
             factory = { ctx ->
                 // Use 'also' with explicit 'wv' to avoid shadowing the outer 'settings' variable
                 WebView(ctx).also { wv ->
@@ -75,7 +80,7 @@ fun HomeScreen(
             }
         )
 
-        // ── Bottom control bar ─────────────────────────────────────────────
+        // ── Bottom panel ───────────────────────────────────────────────────
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -84,106 +89,131 @@ fun HomeScreen(
             tonalElevation = 4.dp,
             shadowElevation = 8.dp
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // Status dot + label
-                val statusColor = when {
-                    uiState.needsLogin      -> Color(0xFFFFB300)
-                    uiState.isServiceRunning -> Color(0xFF66BB6A)
-                    else                    -> Color(0xFF546E7A)
+            Column(modifier = Modifier.navigationBarsPadding()) {
+
+                // ── Log list (collapsible) ────────────────────────────────
+                if (showLogs && uiState.logMessages.isNotEmpty()) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 150.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        reverseLayout = false
+                    ) {
+                        items(uiState.logMessages.take(20)) { msg ->
+                            val color = when {
+                                msg.contains("✓") || msg.contains("BOOKED") -> Color(0xFF66BB6A)
+                                msg.contains("✗") || msg.contains("Error") || msg.contains("expired") -> Color(0xFFEF5350)
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                            Text(
+                                text = msg,
+                                fontSize = 10.sp,
+                                color = color,
+                                modifier = Modifier.padding(vertical = 1.dp),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
-                Box(
+
+                // ── Control bar ──────────────────────────────────────────
+                Row(
                     modifier = Modifier
-                        .size(9.dp)
-                        .background(statusColor, CircleShape)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = when {
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Status dot
+                    val statusColor = when {
+                        uiState.needsLogin       -> Color(0xFFFFB300)
+                        uiState.isServiceRunning -> Color(0xFF66BB6A)
+                        else                     -> Color(0xFF546E7A)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(9.dp)
+                            .background(statusColor, CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    // Last log message (or status label) — tappable to toggle log panel
+                    val lastMsg = uiState.logMessages.firstOrNull()
+                    val statusLabel = when {
                         uiState.needsLogin       -> "Login needed"
                         uiState.isServiceRunning -> "Monitoring"
                         else                     -> "Stopped"
-                    },
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = statusColor
-                )
-                if (uiState.totalChecks > 0) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        "${uiState.totalChecks}",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-                    )
-                }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                // Check Now
-                IconButton(
-                    onClick = { viewModel.checkNow() },
-                    enabled = !uiState.isCheckingNow && !uiState.needsLogin
-                ) {
-                    if (uiState.isCheckingNow) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = "Check Now",
-                            modifier = Modifier.size(22.dp)
-                        )
                     }
-                }
+                    val displayText = if (lastMsg != null && (uiState.isServiceRunning || uiState.totalChecks > 0))
+                        lastMsg else statusLabel
 
-                // Start / Stop monitoring
-                if (!uiState.isServiceRunning) {
-                    IconButton(
-                        onClick = { viewModel.startMonitoring() },
-                        enabled = !uiState.needsLogin
+                    TextButton(
+                        onClick = { showLogs = !showLogs },
+                        contentPadding = PaddingValues(0.dp)
                     ) {
-                        Icon(
-                            Icons.Default.PlayArrow,
-                            contentDescription = "Start Monitoring",
-                            tint = if (uiState.needsLogin) Color.Gray else Color(0xFF66BB6A),
-                            modifier = Modifier.size(26.dp)
+                        Text(
+                            text = displayText,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = if (lastMsg != null && (uiState.isServiceRunning || uiState.totalChecks > 0))
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                            else statusColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 140.dp)
                         )
                     }
-                } else {
-                    IconButton(onClick = { viewModel.stopMonitoring() }) {
-                        Icon(
-                            Icons.Default.Stop,
-                            contentDescription = "Stop Monitoring",
-                            tint = Color(0xFFEF5350),
-                            modifier = Modifier.size(26.dp)
+
+                    if (uiState.totalChecks > 0) {
+                        Text(
+                            "#${uiState.totalChecks}",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.40f)
                         )
                     }
-                }
 
-                // Settings
-                IconButton(onClick = onNavigateToSettings) {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+                    Spacer(modifier = Modifier.weight(1f))
 
-                // Logout
-                IconButton(onClick = { showLogoutDialog = true }) {
-                    Icon(
-                        Icons.Default.Logout,
-                        contentDescription = "Logout",
-                        modifier = Modifier.size(22.dp)
-                    )
+                    // Check Now
+                    IconButton(
+                        onClick = { viewModel.checkNow() },
+                        enabled = !uiState.isCheckingNow && !uiState.needsLogin
+                    ) {
+                        if (uiState.isCheckingNow) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.Search, contentDescription = "Check Now", modifier = Modifier.size(22.dp))
+                        }
+                    }
+
+                    // Start / Stop monitoring
+                    if (!uiState.isServiceRunning) {
+                        IconButton(onClick = { viewModel.startMonitoring() }, enabled = !uiState.needsLogin) {
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = "Start Monitoring",
+                                tint = if (uiState.needsLogin) Color.Gray else Color(0xFF66BB6A),
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = { viewModel.stopMonitoring() }) {
+                            Icon(Icons.Default.Stop, contentDescription = "Stop Monitoring", tint = Color(0xFFEF5350), modifier = Modifier.size(26.dp))
+                        }
+                    }
+
+                    // Settings
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", modifier = Modifier.size(22.dp))
+                    }
+
+                    // Logout
+                    IconButton(onClick = { showLogoutDialog = true }) {
+                        Icon(Icons.Default.Logout, contentDescription = "Logout", modifier = Modifier.size(22.dp))
+                    }
                 }
             }
         }

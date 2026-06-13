@@ -85,6 +85,12 @@ class AppointmentForegroundService : Service() {
                 return@launch
             }
 
+            // Stop immediately if user has logged out
+            if (!current.isLoggedIn) {
+                stopMonitoring()
+                return@launch
+            }
+
             _isRunning.value = true
             _checkCount.value = 0
 

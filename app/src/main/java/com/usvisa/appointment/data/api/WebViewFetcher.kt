@@ -45,44 +45,36 @@ class WebViewFetcher(private val context: Context) {
     }
 
     /**
-     * Creates the hidden WebView and loads the base URL so fetch() calls are same-origin.
-     * Must be called after the user has logged in (so cf_clearance cookie is present).
+     * Creates (or reloads) the hidden WebView and loads SITE so fetch() calls are same-origin.
+     * Call this after every successful login so the WebView always holds a live session.
      * Safe to call from any thread.
      */
     fun initAfterLogin() {
         val run = Runnable {
-            if (webView != null) return@Runnable
-            val wv = WebView(context).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.userAgentString =
-                    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
-                    "(KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/537.36"
-                android.webkit.CookieManager.getInstance().setAcceptCookie(true)
-                android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+            if (webView == null) {
+                val wv = WebView(context).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.userAgentString =
+                        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 " +
+                        "(KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/537.36"
+                    android.webkit.CookieManager.getInstance().setAcceptCookie(true)
+                    android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 
-                webViewClient = object : WebViewClient() {
-                    // Block any redirect to sign_in to prevent cookie pollution
-                    override fun shouldOverrideUrlLoading(
-                        view: WebView, request: WebResourceRequest
-                    ): Boolean {
-                        if (request.url.toString().contains("sign_in")) {
-                            Log.w(TAG, "Hidden WebView blocked redirect to sign_in")
-                            siteLoaded = true  // still mark ready; fetch() will detect expired session
-                            return true
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView, url: String) {
+                            Log.d(TAG, "Hidden WebView loaded: $url")
+                            siteLoaded = true
                         }
-                        return false
-                    }
-
-                    override fun onPageFinished(view: WebView, url: String) {
-                        Log.d(TAG, "Hidden WebView loaded: $url")
-                        siteLoaded = true
                     }
                 }
-                loadUrl(SITE)
+                webView = wv
+                Log.d(TAG, "WebViewFetcher hidden WebView created")
             }
-            webView = wv
-            Log.d(TAG, "WebViewFetcher hidden WebView created")
+            // Always reload SITE after login — ensures the WebView is on ais.usvisa-info.com
+            // so subsequent fetch() calls are same-origin and carry fresh session cookies.
+            siteLoaded = false
+            webView!!.loadUrl(SITE)
         }
 
         if (Looper.myLooper() == Looper.getMainLooper()) run.run()
