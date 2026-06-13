@@ -69,19 +69,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun startMonitoring() {
         val settings = _uiState.value.settings
         if (!settings.isLoggedIn) { addLog("ERROR: Not logged in"); return }
-        if (settings.startDate.isEmpty() || settings.endDate.isEmpty()) {
-            addLog("ERROR: Configure date range in Settings first"); return
-        }
         val facilityId = settings.manualFacilityId.ifEmpty { settings.facilityId }
-        if (facilityId.isEmpty()) { addLog("ERROR: Set Facility ID in Settings"); return }
+        if (facilityId.isEmpty()) { addLog("ERROR: Facility ID not set — go to Settings"); return }
 
         AppointmentForegroundService.startService(getApplication())
-        // Watchdog: WorkManager restarts service if it gets killed
         AppointmentWorker.scheduleWatchdog(getApplication())
 
         val secs = settings.checkIntervalSeconds
+        val rangeStr = if (settings.startDate.isNotEmpty() && settings.endDate.isNotEmpty())
+            "${settings.startDate} → ${settings.endDate}"
+        else "any available date"
         addLog("Started — checking every ${secs}s")
-        addLog("Range: ${settings.startDate} → ${settings.endDate}")
+        addLog("Range: $rangeStr")
         addLog("Consulate ID: $facilityId (${settings.facilityName})")
     }
 

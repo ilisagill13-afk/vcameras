@@ -372,13 +372,17 @@ class AppointmentRepository(private val context: Context) {
             return RepoResult.Error("Schedule ID missing — re-login or set manually in Settings")
         if (facilityId.isEmpty())
             return RepoResult.Error("Facility ID not set — go to Settings")
-        if (settings.startDate.isEmpty() || settings.endDate.isEmpty())
-            return RepoResult.Error("Date range not configured")
 
-        val startDate = runCatching { LocalDate.parse(settings.startDate, DATE_FORMAT) }.getOrNull()
-            ?: return RepoResult.Error("Invalid start date: ${settings.startDate}")
-        val endDate = runCatching { LocalDate.parse(settings.endDate, DATE_FORMAT) }.getOrNull()
-            ?: return RepoResult.Error("Invalid end date: ${settings.endDate}")
+        // Use saved dates if configured; fall back to today → +3 years so any slot qualifies
+        val startDate = if (settings.startDate.isNotEmpty())
+            runCatching { LocalDate.parse(settings.startDate, DATE_FORMAT) }.getOrNull()
+                ?: LocalDate.now()
+        else LocalDate.now()
+
+        val endDate = if (settings.endDate.isNotEmpty())
+            runCatching { LocalDate.parse(settings.endDate, DATE_FORMAT) }.getOrNull()
+                ?: LocalDate.now().plusYears(3)
+        else LocalDate.now().plusYears(3)
 
         return if (settings.autoBook) {
             bookEarliestAvailableSlot(scheduleId, facilityId, startDate, endDate)
