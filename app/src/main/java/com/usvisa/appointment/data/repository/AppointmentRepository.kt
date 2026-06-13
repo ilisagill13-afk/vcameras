@@ -158,8 +158,8 @@ class AppointmentRepository(private val context: Context) {
                     return RepoResult.Error("Session expired", 401)
                 body.startsWith("ERROR:") ->
                     return RepoResult.Error("WebView fetch error: $body")
-                body.contains("sign_in") || body.trimStart().startsWith("<") ->
-                    return RepoResult.Error("Session expired (HTML response)", 302)
+                !body.trimStart().startsWith("[") ->
+                    return RepoResult.Error("Session expired (unexpected response)", 302)
             }
 
             val type = object : TypeToken<List<AvailableDay>>() {}.type
@@ -221,8 +221,8 @@ class AppointmentRepository(private val context: Context) {
                     return RepoResult.Error("Session expired", 401)
                 body.startsWith("ERROR:") ->
                     return RepoResult.Error("WebView fetch error: $body")
-                body.contains("sign_in") || body.trimStart().startsWith("<") ->
-                    return RepoResult.Error("Session expired (HTML response)", 302)
+                !body.trimStart().let { it.startsWith("{") || it.startsWith("[") } ->
+                    return RepoResult.Error("Session expired (unexpected response)", 302)
             }
 
             val times = gson.fromJson(body, AvailableTimes::class.java)
